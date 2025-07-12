@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { extractTimestamp, extractLineNumber, extractObject, extractRows } from './apexLogExtractors';
+import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, extractObject, extractRows } from './ParserUtils';
 
 interface GovernorLimit {
     used: number;
@@ -36,7 +36,7 @@ interface LogLevel {
 
 // Event node without the recursive "children" property
 type EventNode = Omit<TreeNode, 'children'> & {
-  source?: string; // Optional since single file parsing won't have it
+    source?: string; // Optional since single file parsing won't have it
 };
 interface ParsedLog {
     meta: {
@@ -80,11 +80,18 @@ export class ApexLogParser {
         this.reset();
 
         this.meta.filename = path.basename(filePath);
-        const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n');
+        const log = fs.readFileSync(filePath, 'utf8');
 
-        for (let i = 0; i < lines.length; i++) {
-            this.parseLine(lines[i], i);
+        const firstNewlineIndex = log.indexOf('\n');
+        const firstLine = firstNewlineIndex !== -1 ? log.slice(0, firstNewlineIndex) : log;
+        const restOfLog = firstNewlineIndex !== -1 ? log.slice(firstNewlineIndex + 1) : '';
+
+        this.handleDebugLevels(firstLine);
+
+        const logEvents = restOfLog.split(/(?=^\d{2}:\d{2}:\d{2}\.\d+(?: \(\d+\)\|)?)/m);
+
+        for (let i = 0; i < logEvents.length; i++) {
+            this.parseLine(removeTrailingNewlines(logEvents[i]));
         }
 
         return this.buildOutput();
@@ -98,7 +105,7 @@ export class ApexLogParser {
         const output: ParsedLog = {
             meta: {
                 filename: this.meta.filename,
-                durationMs 
+                durationMs
             },
             logLevel: this.logLevels,
             user: this.user,
@@ -125,12 +132,7 @@ export class ApexLogParser {
         this.logLevels = [];
     }
 
-    private parseLine(line: string, lineNumber: number): void {
-        if (lineNumber === 0) {
-            this.handleDebugLevels(line);
-            return;
-        }
-
+    private parseLine(line: string): void {
         const parts = line.split('|');
         if (parts.length < 2) return;
 
@@ -191,7 +193,7 @@ export class ApexLogParser {
         // Create an EXCEPTION node so that the fatal error is captured in the tree
         const node: TreeNode = {
             type: 'EXCEPTION',
-            message: eventData[eventData.length - 1],
+            message: sanitizeString(eventData[eventData.length - 1]),
             timeStart: timestamp,
         };
 
