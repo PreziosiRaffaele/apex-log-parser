@@ -63,6 +63,15 @@ export class ApexLogParser {
     private nodeStack: TreeNode[] = [];
     private logLevels: LogLevel[] = [];
 
+    private mapTypeByTypeExit: Map<string, string> = new Map([
+        ['CODE_UNIT_FINISHED', 'CODE UNIT'],
+        ['METHOD_EXIT', 'METHOD'],
+        ['SOQL_EXECUTE_END', 'SOQL'],
+        ['DML_END', 'DML'],
+        ['EXECUTION_FINISHED', 'EXECUTION'],
+        ['FLOW_START_INTERVIEW_END', 'FLOW_INTERVIEW'],
+    ]);
+
     public constructor() {
         this.reset();
     }
@@ -125,10 +134,6 @@ export class ApexLogParser {
             return;
         }
 
-        if (line.includes('QCPRateCalculatorService_Test.setupTestData')) {
-            console.log(line);
-        }
-
         const parts = line.split('|');
         if (parts.length < 2) return;
 
@@ -145,13 +150,13 @@ export class ApexLogParser {
                 this.handleCodeUnitStarted(timestamp, eventData);
                 break;
             case 'CODE_UNIT_FINISHED':
-                this.handleNodeExit(timestamp);
+                this.handleNodeExit(timestamp, eventType);
                 break;
             case 'METHOD_ENTRY':
                 this.handleMethodEntry(timestamp, eventData);
                 break;
             case 'METHOD_EXIT':
-                this.handleNodeExit(timestamp);
+                this.handleNodeExit(timestamp, eventType);
                 break;
             case 'SOQL_EXECUTE_BEGIN':
                 this.handleSoqlExecuteBegin(timestamp, eventData);
@@ -163,19 +168,19 @@ export class ApexLogParser {
                 this.handleDmlBegin(timestamp, eventData);
                 break;
             case 'DML_END':
-                this.handleNodeExit(timestamp);
+                this.handleNodeExit(timestamp, eventType);
                 break;
             case 'EXECUTION_STARTED':
                 this.handleExecutionStarted(timestamp);
                 break;
             case 'EXECUTION_FINISHED':
-                this.handleNodeExit(timestamp);
+                this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FLOW_START_INTERVIEW_BEGIN':
                 this.handleFlowStartInterviewBegin(timestamp, eventData);
                 break;
             case 'FLOW_START_INTERVIEW_END':
-                this.handleNodeExit(timestamp);
+                this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FATAL_ERROR':
                 this.handleFatalError(timestamp, eventData);
@@ -205,7 +210,7 @@ export class ApexLogParser {
             this.currentNode.type !== 'CODE UNIT' &&
             this.currentNode.type !== 'ROOT'
         ) {
-            this.handleNodeExit(timestamp);
+            this.closeNode(timestamp);
         }
     }
 
@@ -265,7 +270,7 @@ export class ApexLogParser {
         if (this.currentNode && this.currentNode.type === 'SOQL') {
             this.currentNode.rows = extractRows(eventData[eventData.length - 1]);
         }
-        this.handleNodeExit(timestamp);
+        this.handleNodeExit(timestamp, 'SOQL_EXECUTE_END');
     }
 
     private handleSoqlExecuteBegin(timestamp: number, eventData: string[]): void {
@@ -313,7 +318,19 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleNodeExit(timestamp: number): void {
+    private handleNodeExit(timestamp: number, type: string): void {
+        if (this.nodeStack.length === 0) return;
+
+        if (this.nodeStack[this.nodeStack.length - 1].type !== this.mapTypeByTypeExit.get(type)) {
+            while (this.nodeStack.length > 0 && this.nodeStack[this.nodeStack.length - 1].type !== this.mapTypeByTypeExit.get(type)) {
+                this.closeNode(timestamp);
+            }
+        }
+
+        this.closeNode(timestamp);
+    }
+
+    private closeNode(timestamp: number): void {
         if (this.nodeStack.length === 0) return;
 
         const node = this.nodeStack.pop()!;
@@ -321,7 +338,6 @@ export class ApexLogParser {
         const rawDuration = node.timeStart ? timestamp - node.timeStart : 0;
         // Round duration to 3 decimal places
         node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
-
         this.currentNode = this.nodeStack[this.nodeStack.length - 1] ?? null;
     }
 
