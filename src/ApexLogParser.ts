@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
 import { extractTimestamp, extractLineNumber, extractObject, extractRows } from './apexLogExtractors';
 
 interface GovernorLimit {
@@ -46,7 +45,7 @@ interface ParsedLog {
     logLevel: LogLevel[];
     user?: string;
     limits: GovernorLimits;
-    tree: TreeNode | null;
+    tree?: TreeNode;
     // Flatten list of every event in the log without nested children
     events: EventNode[];
 }
@@ -56,10 +55,8 @@ export class ApexLogParser {
     private limits: GovernorLimits = {};
     private user?: string;
     private meta: Record<string, string> = {};
-    private startTime: number | null = null;
-    private endTime: number | null = null;
     private currentNode!: TreeNode;
-    private rootNode: TreeNode | null = null;
+    private rootNode?: TreeNode;
     private nodeStack: TreeNode[] = [];
     private logLevels: LogLevel[] = [];
 
@@ -93,13 +90,14 @@ export class ApexLogParser {
     }
 
     private buildOutput(): ParsedLog {
+        let durationMs = this.rootNode?.children?.reduce((acc, node) => acc + (node.durationMs ?? 0), 0) ?? 0;
+        // Round duration to 3 decimal places
+        durationMs = Math.round((durationMs + Number.EPSILON) * 1000) / 1000;
+
         const output: ParsedLog = {
             meta: {
                 filename: this.meta.filename,
-                durationMs:
-                    this.endTime && this.startTime
-                        ? Math.round(((this.endTime - this.startTime) + Number.EPSILON) * 1000) / 1000
-                        : 0
+                durationMs 
             },
             logLevel: this.logLevels,
             user: this.user,
@@ -115,8 +113,6 @@ export class ApexLogParser {
     private reset(): void {
         this.limits = {};
         this.meta = {};
-        this.startTime = null;
-        this.endTime = null;
         const rootNode: TreeNode = {
             type: 'ROOT',
         };
@@ -260,7 +256,6 @@ export class ApexLogParser {
             rows: extractRows(eventData[eventData.length - 1]),
             durationMs: undefined,
             timeStart: timestamp,
-            // Predefine timeEnd and duration so they appear before children in JSON output
             timeEnd: undefined,
         };
         this.pushNode(node);
