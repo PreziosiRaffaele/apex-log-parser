@@ -35,8 +35,9 @@ interface LogLevel {
 }
 
 // Event node without the recursive "children" property
-type EventNode = Omit<TreeNode, 'children'>;
-
+type EventNode = Omit<TreeNode, 'children'> & {
+  source?: string; // Optional since single file parsing won't have it
+};
 interface ParsedLog {
     meta: {
         filename: string;
