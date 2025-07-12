@@ -253,7 +253,7 @@ export class ApexLogParser {
     private handleDmlBegin(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
             type: 'DML',
-            context: this.currentNode?.method ?? this.currentNode?.name,
+            context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             lineNumber: extractLineNumber(eventData[0]),
             operation: eventData[eventData.length - 3].split(':')[1],
             object: eventData[eventData.length - 2].split(':')[1],
@@ -278,7 +278,7 @@ export class ApexLogParser {
         const object = extractObject(query);
         const node: TreeNode = {
             type: 'SOQL',
-            context: this.currentNode?.method ?? this.currentNode?.name,
+            context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             query,
             object,
             rows: undefined,
