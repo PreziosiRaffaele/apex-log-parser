@@ -1,20 +1,20 @@
 {
-  "name": "apex-log-parser",
-  "version": "1.0.0",
-  "description": "Parse Salesforce Apex debug logs",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc"
-  },
-  "files": [
-    "dist/**/*"
-  ],
-  "devDependencies": {
-    "@types/node": "^20.19.4",
-    "typescript": "^5.8.3"
-  }
+    "name": "apex-log-parser",
+    "version": "1.0.0",
+    "description": "Parse Salesforce Apex debug logs",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "prepublishOnly": "npm run build",
+        "version": "npm version patch && git push --follow-tags",
+        "clean": "rm -rf dist"
+    },
+    "files": [
+        "dist/**/*"
+    ],
+    "devDependencies": {
+        "@types/node": "^20.19.4",
+        "typescript": "^5.8.3"
+    }
 }
