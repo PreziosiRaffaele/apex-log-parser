@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "filename": "log.log",
+    "timestamp": "2025-06-28T15:32:00Z",
+    "username": "005...",
+    "durationMs": 1500
+  },
+  "logLevel": [
+    {
+      "type": "APEX_CODE",
+      "level": "FINEST"
+    },
+    {
+      "type": "APEX_PROFILING",
+      "level": "FINEST"
+    }
+  ],
+  "limits": {
+    "soqlQueries": {
+      "used": 45,
+      "max": 100
+    },
+    "dmlStatements": {
+      "used": 10,
+      "max": 150
+    },
+    "cpuTimeMs": {
+      "used": 450,
+      "max": 10000
+    },
+    "heapSize": {
+      "used": 512000,
+      "max": 6000000
+    }
+  },
+  "events": [
+    {
+      "type": "METHOD",
+      "name": "MyClass.myMethod",
+      "durationMs": 45
+    },
+    {
+      "type": "SOQL",
+      "query": "SELECT Id FROM Account",
+      "durationMs": 30
+    },
+    {
+      "type": "EXCEPTION",
+      "message": "NullPointerException: ..."
+    }
+  ],
+  "tree": {
+    "type": "METHOD",
+    "name": "MyClass.myMethod",
+    "durationMs": 45,
+    "children": [
+      {
+        "type": "SOQL",
+        "query": "SELECT Id FROM Account",
+        "durationMs": 30
+      },
+      {
+        "type": "EXCEPTION",
+        "message": "NullPointerException: ..."
+      }
+    ]
+  },
+  "criticalEvents": [
+    {
+      "type": "EXCEPTION_THROWN",
+      "message": "NullPointerException: ...",
+      "location": "MyClass.cls:15"
+    }
+  ]
+}
