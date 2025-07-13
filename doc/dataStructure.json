@@ -1,9 +1,8 @@
 {
   "meta": {
-    "filename": "log.log",
-    "timestamp": "2025-06-28T15:32:00Z",
-    "username": "005...",
-    "durationMs": 1500
+    "filename": "apex-log.log",
+    "durationMs": 1234.567,
+    "sizeMb": 1.23456
   },
   "logLevel": [
     {
@@ -12,64 +11,175 @@
     },
     {
       "type": "APEX_PROFILING",
-      "level": "FINEST"
+      "level": "INFO"
+    },
+    {
+      "type": "CALLOUT",
+      "level": "INFO"
     }
   ],
+  "user": "user@example.com",
   "limits": {
-    "soqlQueries": {
-      "used": 45,
+    "SOQL Queries": {
+      "used": 10,
       "max": 100
     },
-    "dmlStatements": {
-      "used": 10,
+    "DML Statements": {
+      "used": 5,
       "max": 150
-    },
-    "cpuTimeMs": {
-      "used": 450,
-      "max": 10000
-    },
-    "heapSize": {
-      "used": 512000,
-      "max": 6000000
     }
   },
-  "events": [
-    {
-      "type": "METHOD",
-      "name": "MyClass.myMethod",
-      "durationMs": 45
-    },
-    {
-      "type": "SOQL",
-      "query": "SELECT Id FROM Account",
-      "durationMs": 30
-    },
-    {
-      "type": "EXCEPTION",
-      "message": "NullPointerException: ..."
-    }
-  ],
   "tree": {
-    "type": "METHOD",
-    "name": "MyClass.myMethod",
-    "durationMs": 45,
+    "type": "ROOT",
     "children": [
       {
-        "type": "SOQL",
-        "query": "SELECT Id FROM Account",
-        "durationMs": 30
-      },
-      {
-        "type": "EXCEPTION",
-        "message": "NullPointerException: ..."
+        "type": "EXECUTION",
+        "timeStart": 100000000,
+        "timeEnd": 900000000,
+        "durationMs": 800,
+        "children": [
+          {
+            "type": "CODE_UNIT",
+            "name": "MyTrigger on Account trigger event BeforeInsert for [new]",
+            "timeStart": 110000000,
+            "timeEnd": 890000000,
+            "durationMs": 780,
+            "children": [
+              {
+                "type": "METHOD",
+                "method": "MyClass.myMethod()",
+                "lineNumber": 10,
+                "timeStart": 120000000,
+                "timeEnd": 880000000,
+                "durationMs": 760,
+                "children": [
+                  {
+                    "type": "SOQL",
+                    "context": "MyClass.myMethod()",
+                    "query": "SELECT Id FROM Contact LIMIT 1",
+                    "object": "Contact",
+                    "rows": 1,
+                    "timeStart": 130000000,
+                    "timeEnd": 140000000,
+                    "durationMs": 10
+                  },
+                  {
+                    "type": "DML",
+                    "context": "MyClass.myMethod()",
+                    "lineNumber": 15,
+                    "operation": "Insert",
+                    "object": "Account",
+                    "rows": 1,
+                    "timeStart": 150000000,
+                    "timeEnd": 160000000,
+                    "durationMs": 10
+                  },
+                  {
+                    "type": "CALLOUT",
+                    "request": "https://example.com/api",
+                    "response": "OK",
+                    "timeStart": 200000000,
+                    "timeEnd": 300000000,
+                    "durationMs": 100
+                  },
+                  {
+                    "type": "NAMED_CREDENTIAL",
+                    "request": "callout:My_Named_Credential/api",
+                    "response": "OK",
+                    "timeStart": 400000000,
+                    "timeEnd": 500000000,
+                    "durationMs": 100
+                  },
+                  {
+                    "type": "MANAGED_PKG",
+                    "name": "myManagedPackage",
+                    "timeStart": 600000000,
+                    "timeEnd": 700000000,
+                    "durationMs": 100
+                  },
+                  {
+                    "type": "EXCEPTION",
+                    "message": "System.LimitException: Too many SOQL queries: 101",
+                    "timeStart": 800000000
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
     ]
   },
-  "criticalEvents": [
+  "events": [
     {
-      "type": "EXCEPTION_THROWN",
-      "message": "NullPointerException: ...",
-      "location": "MyClass.cls:15"
+      "type": "EXECUTION",
+      "timeStart": 100000000,
+      "timeEnd": 900000000,
+      "durationMs": 800
+    },
+    {
+      "type": "CODE_UNIT",
+      "name": "MyTrigger on Account trigger event BeforeInsert for [new]",
+      "timeStart": 110000000,
+      "timeEnd": 890000000,
+      "durationMs": 780
+    },
+    {
+      "type": "METHOD",
+      "method": "MyClass.myMethod()",
+      "lineNumber": 10,
+      "timeStart": 120000000,
+      "timeEnd": 880000000,
+      "durationMs": 760
+    },
+    {
+      "type": "SOQL",
+      "context": "MyClass.myMethod()",
+      "query": "SELECT Id FROM Contact LIMIT 1",
+      "object": "Contact",
+      "rows": 1,
+      "timeStart": 130000000,
+      "timeEnd": 140000000,
+      "durationMs": 10
+    },
+    {
+      "type": "DML",
+      "context": "MyClass.myMethod()",
+      "lineNumber": 15,
+      "operation": "Insert",
+      "object": "Account",
+      "rows": 1,
+      "timeStart": 150000000,
+      "timeEnd": 160000000,
+      "durationMs": 10
+    },
+    {
+      "type": "CALLOUT",
+      "request": "https://example.com/api",
+      "response": "OK",
+      "timeStart": 200000000,
+      "timeEnd": 300000000,
+      "durationMs": 100
+    },
+    {
+      "type": "NAMED_CREDENTIAL",
+      "request": "callout:My_Named_Credential/api",
+      "response": "OK",
+      "timeStart": 400000000,
+      "timeEnd": 500000000,
+      "durationMs": 100
+    },
+    {
+      "type": "MANAGED_PKG",
+      "name": "myManagedPackage",
+      "timeStart": 600000000,
+      "timeEnd": 700000000,
+      "durationMs": 100
+    },
+    {
+      "type": "EXCEPTION",
+      "message": "System.LimitException: Too many SOQL queries: 101",
+      "timeStart": 800000000
     }
   ]
 }

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows } from './ParserUtils';
+import { IdGenerator } from './IdGenerator';
 
 interface GovernorLimit {
     used: number;
@@ -12,10 +13,13 @@ interface GovernorLimits {
 }
 
 interface TreeNode {
+    id: string;
+    parentId?: string;
     type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT' | 'NAMED_CREDENTIAL';
     context?: string;
     request?: string;
     response?: string;
+    responseDetails?: string;
     name?: string;
     method?: string;
     lineNumber?: number;
@@ -64,6 +68,7 @@ export class ApexLogParser {
     private rootNode?: TreeNode;
     private nodeStack: TreeNode[] = [];
     private logLevels: LogLevel[] = [];
+    private idGenerator: IdGenerator = new IdGenerator();
 
     private mapTypeByTypeExit: Map<string, string> = new Map([
         ['CODE_UNIT_FINISHED', 'CODE UNIT'],
@@ -129,7 +134,9 @@ export class ApexLogParser {
     private reset(): void {
         this.limits = {};
         this.meta = {};
+        this.idGenerator.reset();
         const rootNode: TreeNode = {
+            id: this.idGenerator.next(),
             type: 'ROOT',
         };
 
@@ -211,16 +218,28 @@ export class ApexLogParser {
             case 'NAMED_CREDENTIAL_RESPONSE':
                 this.handleNamedCredentialResponse(timestamp, eventData);
                 break;
+            case 'NAMED_CREDENTIAL_RESPONSE_DETAIL':
+                this.handleNamedCredentialResponseDetail(eventData);
+                break;
             default:
                 break;
         }
     }
 
+    private handleNamedCredentialResponseDetail(eventData: string[]): void {
+        if (this.currentNode.type === 'NAMED_CREDENTIAL') {
+            this.currentNode.responseDetails = eventData[eventData.length - 1];
+        }
+    }
+
     private handleNamedCredentialRequest(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'NAMED_CREDENTIAL',
             request: eventData[eventData.length - 1],
             response: undefined,
+            responseDetails: undefined,
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -237,6 +256,8 @@ export class ApexLogParser {
 
     private handleCalloutRequest(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'CALLOUT',
             request: eventData[eventData.length - 1],
             response: undefined,
@@ -257,6 +278,8 @@ export class ApexLogParser {
     private handleEnteringManagedPkg(timestamp: number, eventData: string[]): void {
         if (this.currentNode.type === 'MANAGED_PKG') return;
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'MANAGED_PKG',
             name: eventData[eventData.length - 1],
             durationMs: undefined,
@@ -269,6 +292,8 @@ export class ApexLogParser {
     private handleFatalError(timestamp: number, eventData: string[]): void {
         // Create an EXCEPTION node so that the fatal error is captured in the tree
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'EXCEPTION',
             message: sanitizeString(eventData[eventData.length - 1]),
             timeStart: timestamp,
@@ -292,6 +317,8 @@ export class ApexLogParser {
 
     private handleFlowStartInterviewBegin(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'FLOW_INTERVIEW',
             name: eventData[eventData.length - 1],
             durationMs: undefined,
@@ -318,6 +345,8 @@ export class ApexLogParser {
 
     private handleExecutionStarted(timestamp: number): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'EXECUTION',
             timeStart: timestamp,
             timeEnd: undefined,
@@ -328,6 +357,8 @@ export class ApexLogParser {
 
     private handleDmlBegin(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'DML',
             context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             lineNumber: extractLineNumber(eventData[0]),
@@ -352,6 +383,8 @@ export class ApexLogParser {
         const query = eventData[eventData.length - 1];
         const object = extractObject(query);
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'SOQL',
             context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             query,
@@ -371,6 +404,8 @@ export class ApexLogParser {
 
     private handleCodeUnitStarted(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'CODE UNIT',
             name: eventData[eventData.length - 1],
             durationMs: undefined,
@@ -383,6 +418,8 @@ export class ApexLogParser {
 
     private handleMethodEntry(timestamp: number, eventData: string[]): void {
         const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
             type: 'METHOD',
             method: eventData[eventData.length - 1],
             lineNumber: extractLineNumber(eventData[0]),
