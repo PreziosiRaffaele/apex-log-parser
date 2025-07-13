@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, extractObject, extractRows } from './ParserUtils';
+import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows } from './ParserUtils';
 
 interface GovernorLimit {
     used: number;
@@ -333,7 +333,7 @@ export class ApexLogParser {
 
         const node = this.nodeStack.pop()!;
         node.timeEnd = timestamp;
-        const rawDuration = node.timeStart ? timestamp - node.timeStart : 0;
+        const rawDuration = node.timeStart ? covertNsToMs(timestamp - node.timeStart) : 0;
         // Round duration to 3 decimal places
         node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
         this.currentNode = this.nodeStack[this.nodeStack.length - 1] ?? null;

@@ -4,7 +4,7 @@
  */
 
 /**
- * Extract the timestamp (in milliseconds) from the execution time part of a log line.
+ * Description: return the timestamp
  * Example execution time part: "07:29:05.123 (813678225)" -> returns 813.678225
  */
 export function extractTimestamp(executionTimePart: string): number {
@@ -14,6 +14,11 @@ export function extractTimestamp(executionTimePart: string): number {
 
     const timestampText = executionTimePart.substring(start, end).trim();
     const timestampNs = parseFloat(timestampText);
+
+    return timestampNs;
+}
+
+export function covertNsToMs(timestampNs: number): number {
     return Number.isFinite(timestampNs) ? timestampNs / 1_000_000 : 0; // convert ns to ms
 }
 
