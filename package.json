@@ -3,6 +3,9 @@
     "version": "1.0.8",
     "description": "Parse Salesforce Apex debug logs",
     "main": "dist/index.js",
+    "bin": {
+      "apex-parser": "dist/cli.js"
+    },
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "tsc",

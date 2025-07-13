@@ -3,7 +3,7 @@ export class IdGenerator {
     private padding: number;
     private counter: number;
 
-    constructor(prefix = 'evt', padding = 3) {
+    constructor(prefix = 'evt', padding = 5) {
         this.prefix = prefix;
         this.padding = padding;
         this.counter = 0;
