@@ -12,7 +12,7 @@ interface GovernorLimits {
 }
 
 interface TreeNode {
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT' | 'NAMED_CREDENTIAL';
     context?: string;
     request?: string;
     response?: string;
@@ -73,6 +73,7 @@ export class ApexLogParser {
         ['EXECUTION_FINISHED', 'EXECUTION'],
         ['FLOW_START_INTERVIEW_END', 'FLOW_INTERVIEW'],
         ['CALLOUT_RESPONSE', 'CALLOUT'],
+        ['NAMED_CREDENTIAL_RESPONSE', 'NAMED_CREDENTIAL'],
     ]);
 
     public constructor() {
@@ -204,9 +205,34 @@ export class ApexLogParser {
             case 'CALLOUT_RESPONSE':
                 this.handleCalloutResponse(timestamp, eventData);
                 break;
+            case 'NAMED_CREDENTIAL_REQUEST':
+                this.handleNamedCredentialRequest(timestamp, eventData);
+                break;
+            case 'NAMED_CREDENTIAL_RESPONSE':
+                this.handleNamedCredentialResponse(timestamp, eventData);
+                break;
             default:
                 break;
         }
+    }
+
+    private handleNamedCredentialRequest(timestamp: number, eventData: string[]): void {
+        const node: TreeNode = {
+            type: 'NAMED_CREDENTIAL',
+            request: eventData[eventData.length - 1],
+            response: undefined,
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
+    }
+
+    private handleNamedCredentialResponse(timestamp: number, eventData: string[]): void {
+        if (this.currentNode?.type === 'NAMED_CREDENTIAL') {
+            this.currentNode.response = eventData[eventData.length - 1];
+        }
+        this.handleNodeExit(timestamp, 'NAMED_CREDENTIAL_RESPONSE');
     }
 
     private handleCalloutRequest(timestamp: number, eventData: string[]): void {
