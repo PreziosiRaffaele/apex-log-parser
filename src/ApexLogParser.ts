@@ -12,7 +12,7 @@ interface GovernorLimits {
 }
 
 interface TreeNode {
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG';
     context?: string;
     name?: string;
     method?: string;
@@ -145,6 +145,10 @@ export class ApexLogParser {
         const eventType = parts[1];
         const eventData: string[] = parts.slice(2);
 
+        if (this.currentNode.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || ( eventType === 'ENTERING_MANAGED_PKG' && this.currentNode.name !== eventData[eventData.length - 1]))) {
+            this.closeNode(timestamp);
+        }
+
         switch (eventType) {
             case 'USER_INFO':
                 this.handleUserInfo(eventData);
@@ -188,9 +192,24 @@ export class ApexLogParser {
             case 'FATAL_ERROR':
                 this.handleFatalError(timestamp, eventData);
                 break;
+            case 'ENTERING_MANAGED_PKG':
+                this.handleEnteringManagedPkg(timestamp, eventData);
+                break;
             default:
                 break;
         }
+    }
+
+    private handleEnteringManagedPkg(timestamp: number, eventData: string[]): void {
+        if (this.currentNode.type === 'MANAGED_PKG') return;
+        const node: TreeNode = {
+            type: 'MANAGED_PKG',
+            name: eventData[eventData.length - 1],
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
     }
 
     private handleFatalError(timestamp: number, eventData: string[]): void {
