@@ -18,7 +18,24 @@ function parseArgs(args: string[]): string[] | null {
 }
 
 function showUsage(): never {
-    console.error('Usage: apex-parser -f <file1> [file2] ...');
+    console.error(`
+Usage: apex-log-parser -f <file1> [file2] ...
+
+Description:
+  Parses one or more Apex log files and outputs the structured log data as JSON.
+
+Options:
+  -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
+                          Multiple files can be provided, separated by spaces.
+                          Only files with a '.log' extension will be processed.
+
+Examples:
+  Parse a single log file:
+    apex-log-parser -f mylog.log
+
+  Parse multiple log files:
+    apex-log-parser -f log1.log log2.log log3.log
+`);
     process.exit(1);
 }
 
