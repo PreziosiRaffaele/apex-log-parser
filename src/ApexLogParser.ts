@@ -42,6 +42,7 @@ interface ParsedLog {
     meta: {
         filename: string;
         durationMs: number;
+        sizeMb: number;
     };
     logLevel: LogLevel[];
     user?: string;
@@ -56,6 +57,7 @@ export class ApexLogParser {
     private limits: GovernorLimits = {};
     private user?: string;
     private meta: Record<string, string> = {};
+    private logSize?: number;
     private currentNode!: TreeNode;
     private rootNode?: TreeNode;
     private nodeStack: TreeNode[] = [];
@@ -80,6 +82,7 @@ export class ApexLogParser {
         this.reset();
 
         this.meta.filename = path.basename(filePath);
+        this.logSize = fs.statSync(filePath).size;
         const log = fs.readFileSync(filePath, 'utf8');
 
         const firstNewlineIndex = log.indexOf('\n');
@@ -105,7 +108,8 @@ export class ApexLogParser {
         const output: ParsedLog = {
             meta: {
                 filename: this.meta.filename,
-                durationMs
+                durationMs,
+                sizeMb: this.logSize ? parseFloat((this.logSize / (1000 * 1000)).toFixed(5)) : 0,
             },
             logLevel: this.logLevels,
             user: this.user,
