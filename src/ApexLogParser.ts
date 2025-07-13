@@ -12,8 +12,10 @@ interface GovernorLimits {
 }
 
 interface TreeNode {
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT';
     context?: string;
+    request?: string;
+    response?: string;
     name?: string;
     method?: string;
     lineNumber?: number;
@@ -70,6 +72,7 @@ export class ApexLogParser {
         ['DML_END', 'DML'],
         ['EXECUTION_FINISHED', 'EXECUTION'],
         ['FLOW_START_INTERVIEW_END', 'FLOW_INTERVIEW'],
+        ['CALLOUT_RESPONSE', 'CALLOUT'],
     ]);
 
     public constructor() {
@@ -145,7 +148,7 @@ export class ApexLogParser {
         const eventType = parts[1];
         const eventData: string[] = parts.slice(2);
 
-        if (this.currentNode.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || ( eventType === 'ENTERING_MANAGED_PKG' && this.currentNode.name !== eventData[eventData.length - 1]))) {
+        if (this.currentNode?.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || (eventType === 'ENTERING_MANAGED_PKG' && this.currentNode?.name !== eventData[eventData.length - 1]))) {
             this.closeNode(timestamp);
         }
 
@@ -195,9 +198,34 @@ export class ApexLogParser {
             case 'ENTERING_MANAGED_PKG':
                 this.handleEnteringManagedPkg(timestamp, eventData);
                 break;
+            case 'CALLOUT_REQUEST':
+                this.handleCalloutRequest(timestamp, eventData);
+                break;
+            case 'CALLOUT_RESPONSE':
+                this.handleCalloutResponse(timestamp, eventData);
+                break;
             default:
                 break;
         }
+    }
+
+    private handleCalloutRequest(timestamp: number, eventData: string[]): void {
+        const node: TreeNode = {
+            type: 'CALLOUT',
+            request: eventData[eventData.length - 1],
+            response: undefined,
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
+    }
+
+    private handleCalloutResponse(timestamp: number, eventData: string[]): void {
+        if (this.currentNode?.type === 'CALLOUT') {
+            this.currentNode.response = eventData[eventData.length - 1];
+        }
+        this.handleNodeExit(timestamp, 'CALLOUT_RESPONSE');
     }
 
     private handleEnteringManagedPkg(timestamp: number, eventData: string[]): void {
