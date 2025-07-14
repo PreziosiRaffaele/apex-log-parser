@@ -15,10 +15,13 @@ interface GovernorLimits {
 interface TreeNode {
     id: string;
     parentId?: string;
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT' | 'NAMED_CREDENTIAL';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT'; 
     context?: string;
     request?: string;
     response?: string;
+    namedCredentialRequest?: string;
+    namedCredentialResponse?: string;
+    namedCredentialResponseDetails?: string;
     responseDetails?: string;
     name?: string;
     method?: string;
@@ -78,7 +81,6 @@ export class ApexLogParser {
         ['EXECUTION_FINISHED', 'EXECUTION'],
         ['FLOW_START_INTERVIEW_END', 'FLOW_INTERVIEW'],
         ['CALLOUT_RESPONSE', 'CALLOUT'],
-        ['NAMED_CREDENTIAL_RESPONSE', 'NAMED_CREDENTIAL'],
     ]);
 
     public constructor() {
@@ -213,10 +215,10 @@ export class ApexLogParser {
                 this.handleCalloutResponse(timestamp, eventData);
                 break;
             case 'NAMED_CREDENTIAL_REQUEST':
-                this.handleNamedCredentialRequest(timestamp, eventData);
+                this.handleNamedCredentialRequest(eventData);
                 break;
             case 'NAMED_CREDENTIAL_RESPONSE':
-                this.handleNamedCredentialResponse(timestamp, eventData);
+                this.handleNamedCredentialResponse(eventData);
                 break;
             case 'NAMED_CREDENTIAL_RESPONSE_DETAIL':
                 this.handleNamedCredentialResponseDetail(eventData);
@@ -227,31 +229,21 @@ export class ApexLogParser {
     }
 
     private handleNamedCredentialResponseDetail(eventData: string[]): void {
-        if (this.currentNode.type === 'NAMED_CREDENTIAL') {
-            this.currentNode.responseDetails = eventData[eventData.length - 1];
+        if (this.currentNode.type === 'CALLOUT') {
+            this.currentNode.namedCredentialResponseDetails = eventData[eventData.length - 1];
         }
     }
 
-    private handleNamedCredentialRequest(timestamp: number, eventData: string[]): void {
-        const node: TreeNode = {
-            id: this.idGenerator.next(),
-            parentId: this.currentNode.id,
-            type: 'NAMED_CREDENTIAL',
-            request: eventData[eventData.length - 1],
-            response: undefined,
-            responseDetails: undefined,
-            durationMs: undefined,
-            timeStart: timestamp,
-            timeEnd: undefined,
-        };
-        this.pushNode(node);
+    private handleNamedCredentialRequest(eventData: string[]): void {
+        if (this.currentNode.type === 'CALLOUT') {
+            this.currentNode.namedCredentialRequest = eventData[eventData.length - 1];
+        }
     }
 
-    private handleNamedCredentialResponse(timestamp: number, eventData: string[]): void {
-        if (this.currentNode?.type === 'NAMED_CREDENTIAL') {
-            this.currentNode.response = eventData[eventData.length - 1];
+    private handleNamedCredentialResponse(eventData: string[]): void {
+        if (this.currentNode.type === 'CALLOUT') {
+            this.currentNode.namedCredentialResponse = eventData[eventData.length - 1];
         }
-        this.handleNodeExit(timestamp, 'NAMED_CREDENTIAL_RESPONSE');
     }
 
     private handleCalloutRequest(timestamp: number, eventData: string[]): void {
