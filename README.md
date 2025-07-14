@@ -1,5 +1,9 @@
 # Apex Log Parser
 
+## ⚠️ Project Status: Experimental
+
+This CLI is under active development. The current `v1.0.10` release is **not yet considered stable**.
+
 ## Description
 
 `apex-log-parser` is a command-line tool designed to parse Salesforce Apex debug logs and output the structured log data as JSON. This makes it easier to analyze and process Apex logs programmatically.
