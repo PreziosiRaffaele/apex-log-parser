@@ -15,7 +15,7 @@ interface GovernorLimits {
 interface TreeNode {
     id: string;
     parentId?: string;
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_ELEMENT' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT';
     context?: string;
     request?: string;
     response?: string;
@@ -82,6 +82,7 @@ export class ApexLogParser {
         ['FLOW_START_INTERVIEW_END', 'FLOW_START_INTERVIEW'],
         ['FLOW_BULK_ELEMENT_END', 'FLOW_BULK_ELEMENT'],
         ['FLOW_START_INTERVIEWS_END', 'FLOW'],
+        ['FLOW_ELEMENT_END', 'FLOW_ELEMENT'],
         ['CALLOUT_RESPONSE', 'CALLOUT'],
     ]);
 
@@ -204,6 +205,12 @@ export class ApexLogParser {
             case 'FLOW_START_INTERVIEW_END':
                 this.handleNodeExit(timestamp, eventType);
                 break;
+            case 'FLOW_ELEMENT_BEGIN':
+                this.handleFlowElementBegin(timestamp, eventData);
+                break;
+            case 'FLOW_ELEMENT_END':
+                this.handleNodeExit(timestamp, eventType);
+                break;
             case 'FATAL_ERROR':
                 this.handleFatalError(timestamp, eventData);
                 break;
@@ -240,6 +247,19 @@ export class ApexLogParser {
             default:
                 break;
         }
+    }
+
+    private handleFlowElementBegin(timestamp: number, eventData: string[]): void {
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'FLOW_ELEMENT',
+            name: eventData[eventData.length - 2] + ' ' + eventData[eventData.length - 1],
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
     }
 
     private handleFlowStartInterviewsBegin(timestamp: number, eventData: string[]): void {
