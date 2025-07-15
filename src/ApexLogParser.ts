@@ -15,7 +15,7 @@ interface GovernorLimits {
 interface TreeNode {
     id: string;
     parentId?: string;
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW_INTERVIEW' | 'MANAGED_PKG' | 'CALLOUT'; 
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT';
     context?: string;
     request?: string;
     response?: string;
@@ -79,7 +79,9 @@ export class ApexLogParser {
         ['SOQL_EXECUTE_END', 'SOQL'],
         ['DML_END', 'DML'],
         ['EXECUTION_FINISHED', 'EXECUTION'],
-        ['FLOW_START_INTERVIEW_END', 'FLOW_INTERVIEW'],
+        ['FLOW_START_INTERVIEW_END', 'FLOW_START_INTERVIEW'],
+        ['FLOW_BULK_ELEMENT_END', 'FLOW_BULK_ELEMENT'],
+        ['FLOW_START_INTERVIEWS_END', 'FLOW'],
         ['CALLOUT_RESPONSE', 'CALLOUT'],
     ]);
 
@@ -223,9 +225,47 @@ export class ApexLogParser {
             case 'NAMED_CREDENTIAL_RESPONSE_DETAIL':
                 this.handleNamedCredentialResponseDetail(eventData);
                 break;
+            case 'FLOW_BULK_ELEMENT_BEGIN':
+                this.handleFlowBulkElementStart(timestamp, eventData);
+                break;
+            case 'FLOW_BULK_ELEMENT_END':
+                this.handleNodeExit(timestamp, eventType);
+                break;
+            case 'FLOW_START_INTERVIEWS_BEGIN':
+                this.handleFlowStartInterviewsBegin(timestamp, eventData);
+                break;
+            case 'FLOW_START_INTERVIEWS_END':
+                this.handleNodeExit(timestamp, eventType);
+                break;
             default:
                 break;
         }
+    }
+
+    private handleFlowStartInterviewsBegin(timestamp: number, eventData: string[]): void {
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'FLOW',
+            name: eventData[eventData.length - 1],
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
+    }
+
+    private handleFlowBulkElementStart(timestamp: number, eventData: string[]): void {
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'FLOW_BULK_ELEMENT',
+            name: eventData[eventData.length - 1],
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
     }
 
     private handleNamedCredentialResponseDetail(eventData: string[]): void {
@@ -308,11 +348,16 @@ export class ApexLogParser {
     }
 
     private handleFlowStartInterviewBegin(timestamp: number, eventData: string[]): void {
+        const flowName = eventData[eventData.length - 1];
+        if (this.currentNode?.type === 'FLOW') {
+            this.currentNode.name = flowName;
+        }
+
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
-            type: 'FLOW_INTERVIEW',
-            name: eventData[eventData.length - 1],
+            type: 'FLOW_START_INTERVIEW',
+            name: flowName,
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
