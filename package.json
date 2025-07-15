@@ -1,6 +1,6 @@
 {
     "name": "apex-log-parser",
-    "version": "1.0.10",
+    "version": "1.0.11",
     "description": "Parse Salesforce Apex debug logs",
     "main": "dist/index.js",
     "bin": {

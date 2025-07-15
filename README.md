@@ -2,7 +2,7 @@
 
 ## ⚠️ Project Status: Experimental
 
-This CLI is under active development. The current `v1.0.10` release is **not yet considered stable**.
+This CLI is under active development. The current release is **not yet considered stable**.
 
 ## Description
 
