@@ -44,6 +44,9 @@ Usage: apex-log-parser [-f <file1> [file2] ...]
 Description:
   Parses one or more Apex log files and outputs the structured log data as JSON.
   If no file is specified, the parser reads from stdin.
+  If a single log file is provided, the output is the full structured log.
+  If multiple files are provided, the output is a JSON object with an 'events' array, where each event
+  includes a 'source' property indicating the origin file.
 
 Options:
   -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
