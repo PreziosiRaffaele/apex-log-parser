@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { ParsedLog, ApexLogParser } from './ApexLogParser.js';
-import { promises as fs } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 
 /**
@@ -11,7 +11,8 @@ import * as path from 'path';
  */
 function parseArgs(args: string[]): string[]{
     if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
-    const fIndex = args.indexOf('-f')
+    if (args.indexOf('-v') !== -1 || args.indexOf('--version') !== -1) showVersion();
+    const fIndex = args.indexOf('-f'); 
     if (fIndex === -1) return [];
 
     const files: string[] = [];
@@ -22,6 +23,18 @@ function parseArgs(args: string[]): string[]{
     }
     
     return files;
+}
+
+function showVersion(): never {
+    const packageJsonPath = path.resolve(__dirname, '..', 'package.json');
+    try {
+        const packageJsonContent = readFileSync(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(packageJsonContent);
+        console.log(packageJson.version);
+    } catch (error) {
+        console.error(`Error reading version from package.json: ${error}`);
+    }
+    process.exit(0);
 }
 
 function showUsage(): never {
