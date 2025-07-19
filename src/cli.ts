@@ -3,10 +3,17 @@ import { ParsedLog, ApexLogParser } from './ApexLogParser.js';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-function parseArgs(args: string[]): string[] | null {
-    const fIndex = args.indexOf('-f');
-    if (fIndex < 0) return null;
-    
+/**
+ * Parses the command line arguments and returns the list of files to process.
+ * If no -f flag is provided, returns an empty array.
+ * @param args The command line arguments.
+ * @returns The list of files to process.
+ */
+function parseArgs(args: string[]): string[]{
+    if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
+    const fIndex = args.indexOf('-f')
+    if (fIndex === -1) return [];
+
     const files: string[] = [];
     for (let i = fIndex + 1; i < args.length; i++) {
         const arg = args[i];
@@ -14,15 +21,16 @@ function parseArgs(args: string[]): string[] | null {
         files.push(arg);
     }
     
-    return files.length > 0 ? files : null;
+    return files;
 }
 
 function showUsage(): never {
     console.error(`
-Usage: apex-log-parser -f <file1> [file2] ...
+Usage: apex-log-parser [-f <file1> [file2] ...]
 
 Description:
   Parses one or more Apex log files and outputs the structured log data as JSON.
+  If no file is specified, the parser reads from stdin.
 
 Options:
   -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
@@ -35,6 +43,9 @@ Examples:
 
   Parse multiple log files:
     apex-log-parser -f log1.log log2.log log3.log
+
+  Parse from stdin:
+    sf apex get log --number 1 -o MyOrg | apex-log-parser
 `);
     process.exit(1);
 }
@@ -51,7 +62,8 @@ async function checkFileExists(filePath: string): Promise<boolean> {
 
 async function parseFile(parser: ApexLogParser, filePath: string): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {
     try {
-        const apexLog = await parser.parseFile(filePath);
+        const logContent = await fs.readFile(filePath, 'utf-8');
+        const apexLog = parser.parse(logContent, path.basename(filePath));
         return { success: true, data: apexLog };
     } catch (err: any) {
         console.error(`Error parsing ${filePath}: ${err.message}`);
@@ -131,17 +143,46 @@ async function processMultipleFiles(parser: ApexLogParser, files: string[]): Pro
     process.exit(hasErrors ? 2 : 0);
 }
 
+async function processStdin(parser: ApexLogParser): Promise<void> {
+    let logContent = '';
+    process.stdin.on('readable', () => {
+        let chunk;
+        while (null !== (chunk = process.stdin.read())) {
+            logContent += chunk;
+        }
+    });
+
+    process.stdin.on('end', () => {
+        try {
+            if (logContent.length !== 0) {
+                const apexLog = parser.parse(logContent);
+                console.log(JSON.stringify(apexLog, null, 2));
+            }
+            process.exit(0);
+        } catch (err: any) {
+            console.error(`Error parsing from stdin: ${err.message}`);
+            process.exit(1);
+        }
+    });
+
+    process.stdin.on('error', (err) => {
+        console.error(`Error reading from stdin: ${err.message}`);
+        process.exit(1);
+    });
+}
+
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
     const files = parseArgs(args);
     
-    if (!files) {
-        showUsage();
-    }
-    
     const parser = new ApexLogParser();
-    
-    if (files.length === 1) {
+
+    if (files.length === 0 ) {
+        if (process.stdin.isTTY) {
+            process.exit(0);
+        }
+        await processStdin(parser);
+    } else if (files.length === 1) {
         await processSingleFile(parser, files[0]);
     } else {
         await processMultipleFiles(parser, files);

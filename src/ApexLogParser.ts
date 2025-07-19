@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows } from './ParserUtils';
 import { IdGenerator } from './IdGenerator';
 
@@ -90,14 +88,11 @@ export class ApexLogParser {
         this.reset();
     }
 
-    public async parseFile(filePath: string): Promise<ParsedLog> {
-        if (!filePath) throw new Error('File path is required');
-        if (!fs.existsSync(filePath)) throw new Error(`File ${filePath} does not exist`);
+    public parse(log: string, filename: string = 'stdin'): ParsedLog {
         this.reset();
 
-        this.meta.filename = path.basename(filePath);
-        this.logSize = fs.statSync(filePath).size;
-        const log = fs.readFileSync(filePath, 'utf8');
+        this.meta.filename = filename;
+        this.logSize = Buffer.byteLength(log, 'utf8');
 
         const firstNewlineIndex = log.indexOf('\n');
         const firstLine = firstNewlineIndex !== -1 ? log.slice(0, firstNewlineIndex) : log;
