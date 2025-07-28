@@ -1,10 +1,9 @@
-import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows } from './ParserUtils';
+import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils';
 import { IdGenerator } from './IdGenerator';
-import { GovernorLimits, LogLevel, ParsedLog, TreeNode, EventNode } from './types';
+import { LogLevel, ParsedLog, TreeNode, EventNode } from './types';
 
 
 export class ApexLogParser {
-    private limits: GovernorLimits = {};
     private user?: string;
     private meta: Record<string, string> = {};
     private logSize?: number;
@@ -65,7 +64,6 @@ export class ApexLogParser {
             },
             logLevel: this.logLevels,
             user: this.user,
-            limits: this.limits,
             tree: this.rootNode,
             events: this.rootNode ? this.flattenEvents(this.rootNode) : [],
         };
@@ -75,7 +73,6 @@ export class ApexLogParser {
 
 
     private reset(): void {
-        this.limits = {};
         this.meta = {};
         this.idGenerator.reset();
         const rootNode: TreeNode = {
@@ -111,6 +108,9 @@ export class ApexLogParser {
                 break;
             case 'CODE_UNIT_STARTED':
                 this.handleCodeUnitStarted(timestamp, eventData);
+                break;
+            case 'LIMIT_USAGE_FOR_NS':
+                this.handleLimitUsageForNs(timestamp, eventData);
                 break;
             case 'CODE_UNIT_FINISHED':
                 this.handleNodeExit(timestamp, eventType);
@@ -187,6 +187,20 @@ export class ApexLogParser {
             default:
                 break;
         }
+    }
+
+    private handleLimitUsageForNs(timestamp: number, eventData: string[]): void {
+        const namespace = eventData[0].replace(/[()]/g, '');
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            name: namespace,
+            type: 'CUMULATIVE_LIMIT_USAGE',
+            limits: parseGovernorLimits(eventData[1]),
+            timeStart: timestamp,
+        };
+        this.pushNode(node);
+        this.closeNode();
     }
 
     private handleFlowElementBegin(timestamp: number, eventData: string[]): void {
@@ -439,14 +453,17 @@ export class ApexLogParser {
         this.closeNode(timestamp);
     }
 
-    private closeNode(timestamp: number): void {
+    private closeNode(timestamp?: number): void {
         if (this.nodeStack.length === 0) return;
 
         const node = this.nodeStack.pop()!;
-        node.timeEnd = timestamp;
-        const rawDuration = node.timeStart ? covertNsToMs(timestamp - node.timeStart) : 0;
-        // Round duration to 3 decimal places
-        node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
+
+        if (timestamp) {
+            node.timeEnd = timestamp;
+            const rawDuration = node.timeStart ? covertNsToMs(timestamp - node.timeStart) : 0;
+            // Round duration to 3 decimal places
+            node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
+        }
         this.currentNode = this.nodeStack[this.nodeStack.length - 1] ?? null;
     }
 

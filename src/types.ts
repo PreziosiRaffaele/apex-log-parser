@@ -1,18 +1,37 @@
-
-export interface GovernorLimit {
-    used: number;
-    max: number;
+export interface LimitDetail {
+  current: number;
+  max: number;
+  usagePercentage: number;
 }
 
-export interface GovernorLimits {
-    [limitType: string]: GovernorLimit;
+export type LimitType = 
+  | 'SOQL_QUERIES'
+  | 'SOQL_ROWS' 
+  | 'SOSL_SEARCHES'
+  | 'DML_STATEMENTS'
+  | 'DML_ROWS'
+  | 'CPU_TIME'
+  | 'HEAP_SIZE'
+  | 'CALLOUTS'
+  | 'EMAIL_INVOCATIONS'
+  | 'FUTURE_CALLS'
+  | 'QUEUEABLE_JOBS'
+  | 'MOBILE_APEX_PUSH';
+
+export interface LimitDetail {
+  current: number;
+  max: number;
+  usagePercentage: number;
 }
+
+export type LimitsObject = Record<LimitType, LimitDetail>;
 
 export interface TreeNode {
     id: string;
     parentId?: string;
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_ELEMENT' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT';
+    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_ELEMENT' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT' | "CUMULATIVE_LIMIT_USAGE";
     context?: string;
+    limits?: LimitsObject;
     request?: string;
     response?: string;
     namedCredentialRequest?: string;
@@ -51,7 +70,6 @@ export interface ParsedLog {
     };
     logLevel: LogLevel[];
     user?: string;
-    limits: GovernorLimits;
     tree?: TreeNode;
     // Flatten list of every event in the log without nested children
     events: EventNode[];
