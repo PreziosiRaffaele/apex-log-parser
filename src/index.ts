@@ -1,1 +1,2 @@
-export { ApexLogParser, ParsedLog } from './ApexLogParser';
+export { ApexLogParser } from './ApexLogParser';
+export { ParsedLog, GovernorLimits, LogLevel, TreeNode, EventNode } from './types';

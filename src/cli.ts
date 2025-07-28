@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { ParsedLog, ApexLogParser } from './ApexLogParser.js';
+import { ApexLogParser, ParsedLog } from './index.js';
 import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 
