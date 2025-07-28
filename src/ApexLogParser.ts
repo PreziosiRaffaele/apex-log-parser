@@ -156,6 +156,8 @@ export class ApexLogParser {
         const eventType = parts[1];
         const eventData: string[] = parts.slice(2);
 
+        // Close the current node if it is a managed package and the event is no longer related to a managed package. 
+        // This is necessary because the managed package doesn't have an explicit exit event.
         if (this.currentNode?.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || (eventType === 'ENTERING_MANAGED_PKG' && this.currentNode?.name !== eventData[eventData.length - 1]))) {
             this.closeNode(timestamp);
         }
@@ -473,7 +475,7 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'METHOD',
-            method: eventData[eventData.length - 1],
+            name: eventData[eventData.length - 1],
             lineNumber: extractLineNumber(eventData[0]),
             durationMs: undefined,
             timeStart: timestamp,
