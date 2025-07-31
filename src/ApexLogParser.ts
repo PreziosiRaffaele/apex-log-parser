@@ -194,8 +194,8 @@ export class ApexLogParser {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
-            name: namespace,
             type: 'CUMULATIVE_LIMIT_USAGE',
+            name: namespace,
             limits: parseGovernorLimits(eventData[1]),
             timeStart: timestamp,
         };
@@ -371,7 +371,6 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'DML',
-            context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             lineNumber: extractLineNumber(eventData[0]),
             operation: eventData[eventData.length - 3].split(':')[1],
             object: eventData[eventData.length - 2].split(':')[1],
@@ -397,7 +396,6 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'SOQL',
-            context: this.currentNode?.method ?? this.currentNode?.name ?? this.currentNode?.context,
             query,
             object,
             rows: undefined,

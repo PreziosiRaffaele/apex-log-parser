@@ -30,7 +30,6 @@ export interface TreeNode {
     id: string;
     parentId?: string;
     type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_ELEMENT' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT' | "CUMULATIVE_LIMIT_USAGE";
-    context?: string;
     limits?: LimitsObject;
     request?: string;
     response?: string;
