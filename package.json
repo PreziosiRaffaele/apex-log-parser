@@ -3,8 +3,9 @@
     "version": "1.0.14",
     "description": "Parse Salesforce Apex debug logs",
     "main": "dist/index.js",
+    "type": "module",
     "bin": {
-      "apex-log-parser": "dist/cli.js"
+        "apex-log-parser": "dist/cli.js"
     },
     "types": "dist/index.d.ts",
     "scripts": {
@@ -19,5 +20,8 @@
     "devDependencies": {
         "@types/node": "^20.19.4",
         "typescript": "^5.8.3"
+    },
+    "dependencies": {
+        "ansi-regex": "^6.1.0"
     }
 }

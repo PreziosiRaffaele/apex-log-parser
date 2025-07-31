@@ -1,6 +1,6 @@
-import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils';
-import { IdGenerator } from './IdGenerator';
-import { LogLevel, ParsedLog, TreeNode, EventNode } from './types';
+import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
+import { IdGenerator } from './IdGenerator.js';
+import { LogLevel, ParsedLog, TreeNode, EventNode } from './types.js';
 
 
 export class ApexLogParser {

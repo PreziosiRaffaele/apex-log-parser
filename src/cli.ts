@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { ApexLogParser, ParsedLog } from './index.js';
+import { normalizeLogInput } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 
@@ -9,10 +10,10 @@ import * as path from 'path';
  * @param args The command line arguments.
  * @returns The list of files to process.
  */
-function parseArgs(args: string[]): string[]{
+function parseArgs(args: string[]): string[] {
     if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
     if (args.indexOf('-v') !== -1 || args.indexOf('--version') !== -1) showVersion();
-    const fIndex = args.indexOf('-f'); 
+    const fIndex = args.indexOf('-f');
     if (fIndex === -1) return [];
 
     const files: string[] = [];
@@ -21,7 +22,7 @@ function parseArgs(args: string[]): string[]{
         if (arg.startsWith('-')) break;
         files.push(arg);
     }
-    
+
     return files;
 }
 
@@ -111,7 +112,7 @@ async function processSingleFile(parser: ApexLogParser, filePath: string): Promi
     // Verify file; exit on any invalid
     const valid = await verifyLogFile(filePath, true);
     if (!valid) process.exit(1);
-    
+
     const result = await parseFile(parser, filePath);
     if (result.success) {
         console.log(JSON.stringify(result.data, null, 2));
@@ -124,7 +125,7 @@ async function processMultipleFiles(parser: ApexLogParser, files: string[]): Pro
     // Check which files exist and process only those
     const existingFiles: string[] = [];
     let hasErrors = false;
-    
+
     for (const filePath of files) {
         const valid = await verifyLogFile(filePath);
         if (!valid) {
@@ -133,12 +134,12 @@ async function processMultipleFiles(parser: ApexLogParser, files: string[]): Pro
         }
         existingFiles.push(filePath);
     }
-    
+
     // If no files exist, exit with error
     if (existingFiles.length === 0) {
         process.exit(1);
     }
-    
+
     // Process files sequentially to avoid memory issues with large files
     const allEvents: any[] = [];
     for (const filePath of existingFiles) {
@@ -171,7 +172,8 @@ async function processStdin(parser: ApexLogParser): Promise<void> {
     process.stdin.on('end', () => {
         try {
             if (logContent.length !== 0) {
-                const apexLog = parser.parse(logContent);
+                let cleanLog = normalizeLogInput(logContent);
+                const apexLog = parser.parse(cleanLog);
                 console.log(JSON.stringify(apexLog, null, 2));
             }
             process.exit(0);
@@ -190,10 +192,10 @@ async function processStdin(parser: ApexLogParser): Promise<void> {
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
     const files = parseArgs(args);
-    
+
     const parser = new ApexLogParser();
 
-    if (files.length === 0 ) {
+    if (files.length === 0) {
         if (process.stdin.isTTY) {
             process.exit(0);
         }

@@ -1,2 +1,2 @@
-export { ApexLogParser } from './ApexLogParser';
-export { ParsedLog, LogLevel, TreeNode, EventNode } from './types';
+export { ApexLogParser } from './ApexLogParser.js';
+export { ParsedLog, LogLevel, TreeNode, EventNode } from './types.js';

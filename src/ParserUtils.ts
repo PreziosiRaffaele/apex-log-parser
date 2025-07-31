@@ -1,4 +1,4 @@
-import { LimitsObject, LimitType, LimitDetail } from './types';
+import { LimitsObject, LimitType, LimitDetail } from './types.js';
 
 /**
  * Utility functions for extracting values from Apex debug log lines.
