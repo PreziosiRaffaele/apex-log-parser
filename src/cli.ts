@@ -45,9 +45,6 @@ Usage: apex-log-parser [-f <file1> [file2] ...]
 Description:
   Parses one or more Apex log files and outputs the structured log data as JSON.
   If no file is specified, the parser reads from stdin.
-  If a single log file is provided, the output is the full structured log.
-  If multiple files are provided, the output is a JSON object with an 'events' array, where each event
-  includes a 'source' property indicating the origin file.
 
 Options:
   -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
@@ -108,26 +105,14 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
     return exists;
 }
 
-async function processSingleFile(parser: ApexLogParser, filePath: string): Promise<void> {
-    // Verify file; exit on any invalid
-    const valid = await verifyLogFile(filePath, true);
-    if (!valid) process.exit(1);
-
-    const result = await parseFile(parser, filePath);
-    if (result.success) {
-        console.log(JSON.stringify(result.data, null, 2));
-    } else {
-        process.exit(1);
-    }
-}
-
-async function processMultipleFiles(parser: ApexLogParser, files: string[]): Promise<void> {
-    // Check which files exist and process only those
+async function processFiles(parser: ApexLogParser, files: string[]): Promise<void> {
     const existingFiles: string[] = [];
     let hasErrors = false;
 
     for (const filePath of files) {
-        const valid = await verifyLogFile(filePath);
+        // When there's only one file, we want to be more verbose on failure.
+        const isSingleFile = files.length === 1;
+        const valid = await verifyLogFile(filePath, isSingleFile);
         if (!valid) {
             if (path.extname(filePath) === '.log') hasErrors = true;
             continue;
@@ -135,29 +120,30 @@ async function processMultipleFiles(parser: ApexLogParser, files: string[]): Pro
         existingFiles.push(filePath);
     }
 
-    // If no files exist, exit with error
-    if (existingFiles.length === 0) {
+    if (existingFiles.length === 0 && files.length > 0) {
         process.exit(1);
     }
 
-    // Process files sequentially to avoid memory issues with large files
-    const allEvents: any[] = [];
+    let successfulParses = 0;
     for (const filePath of existingFiles) {
         const result = await parseFile(parser, filePath);
         if (result.success) {
-            const events = result.data.events.map((event: any) => ({
-                ...event,
-                source: filePath
-            }));
-            allEvents.push(...events);
+            console.log(JSON.stringify(result.data, null, 2));
+            successfulParses++;
         } else {
             hasErrors = true;
         }
     }
 
-    console.log(JSON.stringify({ events: allEvents }, null, 2));
     await new Promise(resolve => process.stdout.write('', resolve));
-    process.exit(hasErrors ? 2 : 0);
+
+    if (successfulParses === 0 && files.length > 0) {
+        process.exit(1); // Total failure
+    } else if (hasErrors) {
+        process.exit(2); // Partial success
+    } else {
+        process.exit(0); // Total success
+    }
 }
 
 async function processStdin(parser: ApexLogParser): Promise<void> {
@@ -200,10 +186,8 @@ async function main(): Promise<void> {
             process.exit(0);
         }
         await processStdin(parser);
-    } else if (files.length === 1) {
-        await processSingleFile(parser, files[0]);
     } else {
-        await processMultipleFiles(parser, files);
+        await processFiles(parser, files);
     }
 }
 
