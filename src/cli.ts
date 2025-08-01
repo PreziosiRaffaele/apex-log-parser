@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { ApexLogParser, ParsedLog } from './index.js';
-import { normalizeLogInput } from './cliUtils.js';
+import { normalizeLogInput, checkFileExists } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 
@@ -62,16 +62,6 @@ Examples:
     sf apex get log --number 1 -o MyOrg | apex-log-parser
 `);
     process.exit(1);
-}
-
-async function checkFileExists(filePath: string): Promise<boolean> {
-    try {
-        await fs.access(filePath);
-        return true;
-    } catch (err: any) {
-        console.error(`File not found: ${filePath}`);
-        return false;
-    }
 }
 
 async function parseFile(parser: ApexLogParser, filePath: string): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {

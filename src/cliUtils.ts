@@ -1,4 +1,5 @@
 import ansiRegex from 'ansi-regex';
+import { promises as fs } from 'fs';
 const regex = ansiRegex();
 
 export function normalizeLogInput(logText: string): string {
@@ -19,4 +20,14 @@ function convertLiteralNewlinesToActual(inputData: string): string {
         return inputData.replace(/\\n/g, '\n');
     }
     return inputData;
+}
+
+export async function checkFileExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.access(filePath);
+        return true;
+    } catch (err: any) {
+        console.error(`File not found: ${filePath}`);
+        return false;
+    }
 }
