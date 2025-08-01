@@ -18,6 +18,22 @@ export type LimitType =
   | 'QUEUEABLE_JOBS'
   | 'MOBILE_APEX_PUSH';
 
+export type NodeType = 
+  | 'ROOT'
+  | 'CODE_UNIT'
+  | 'METHOD'
+  | 'SOQL'
+  | 'DML'
+  | 'EXCEPTION'
+  | 'EXECUTION'
+  | 'FLOW'
+  | 'FLOW_ELEMENT'
+  | 'FLOW_START_INTERVIEW'
+  | 'FLOW_BULK_ELEMENT'
+  | 'MANAGED_PKG'
+  | 'CALLOUT'
+  | "LIMIT";
+
 export interface LimitDetail {
   current: number;
   max: number;
@@ -29,7 +45,7 @@ export type LimitsObject = Record<LimitType, LimitDetail>;
 export interface TreeNode {
     id: string;
     parentId?: string;
-    type: 'ROOT' | 'CODE UNIT' | 'METHOD' | 'SOQL' | 'DML' | 'EXCEPTION' | 'EXECUTION' | 'FLOW' | 'FLOW_ELEMENT' | 'FLOW_START_INTERVIEW' | 'FLOW_BULK_ELEMENT' | 'MANAGED_PKG' | 'CALLOUT' | "CUMULATIVE_LIMIT_USAGE";
+    type: NodeType;
     limits?: LimitsObject;
     request?: string;
     response?: string;

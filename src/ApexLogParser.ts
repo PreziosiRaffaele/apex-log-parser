@@ -14,7 +14,7 @@ export class ApexLogParser {
     private idGenerator: IdGenerator = new IdGenerator();
 
     private mapTypeByTypeExit: Map<string, string> = new Map([
-        ['CODE_UNIT_FINISHED', 'CODE UNIT'],
+        ['CODE_UNIT_FINISHED', 'CODE_UNIT'],
         ['METHOD_EXIT', 'METHOD'],
         ['SOQL_EXECUTE_END', 'SOQL'],
         ['DML_END', 'DML'],
@@ -194,7 +194,7 @@ export class ApexLogParser {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
-            type: 'CUMULATIVE_LIMIT_USAGE',
+            type: 'LIMIT',
             name: namespace,
             limits: parseGovernorLimits(eventData[1]),
             timeStart: timestamp,
@@ -308,13 +308,13 @@ export class ApexLogParser {
         // Attach the exception node to the current context
         this.pushNode(node);
 
-        // Unwind the node stack until we reach the surrounding CODE UNIT (or ROOT if
+        // Unwind the node stack until we reach the surrounding CODE_UNIT (or ROOT if
         // no code-unit context exists). This mirrors the behaviour of the Salesforce
         // log where a fatal error terminates the execution of the current method
         // chain.
         while (
             this.currentNode &&
-            this.currentNode.type !== 'CODE UNIT' &&
+            this.currentNode.type !== 'CODE_UNIT' &&
             this.currentNode.type !== 'ROOT'
         ) {
             this.closeNode(timestamp);
@@ -415,7 +415,7 @@ export class ApexLogParser {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
-            type: 'CODE UNIT',
+            type: 'CODE_UNIT',
             name: eventData[eventData.length - 1],
             durationMs: undefined,
             timeStart: timestamp,
