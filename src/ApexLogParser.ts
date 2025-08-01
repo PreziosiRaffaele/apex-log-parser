@@ -481,9 +481,10 @@ export class ApexLogParser {
      */
     private flattenEvents(node: TreeNode): EventNode[] {
         const { children, ...eventWithoutChildren } = node;
-
+        const eventNode: EventNode = eventWithoutChildren;
+        eventNode.source = this.meta.filename;
         // Skip the synthetic ROOT node from the output array
-        const events: EventNode[] = node.type === 'ROOT' ? [] : [eventWithoutChildren as EventNode];
+        const events: EventNode[] = node.type === 'ROOT' ? [] : [eventNode];
 
         if (children?.length) {
             for (const child of children) {
