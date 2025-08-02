@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import readline from 'readline';
 import { ApexLogParser, ParsedLog } from './index.js';
-import { ApexLogSplitter } from './ApexLogSplitter.js';
+import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
@@ -144,8 +144,8 @@ async function processStdin(parser: ApexLogParser): Promise<void> {
         crlfDelay: Infinity,
     });
 
-    const splitter = new ApexLogSplitter((log) => {
-        const apexLog = parser.parse(log);
+    const splitter = new ApexLogSplitter((logData: LogData) => {
+        const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number);
         console.log(JSON.stringify(apexLog, null, 2));
     });
 

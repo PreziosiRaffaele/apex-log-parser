@@ -1,7 +1,9 @@
-type LogCallback = (log: string) => void | Promise<void>;
+type LogCallback = (log: LogData) => void | Promise<void>;
+type LogData = { log: string; number: number };
 
 class ApexLogSplitter {
     private currentLog: string[] = [];
+    private numLogs: number = 0;
     private onLogCallback?: LogCallback;
     private hasFoundFirstLog: boolean = false;
 
@@ -18,9 +20,13 @@ class ApexLogSplitter {
 
     public processLine(line: string): void {
         if (this.isLogStart(line)) {
+            this.numLogs++;
             // If we have a current log and we have already passed the first log header, emit it.
             if (this.hasFoundFirstLog && this.currentLog.length > 0) {
-                const completedLog = this.currentLog.join('\n');
+                const completedLog: LogData = {
+                    log: this.currentLog.join('\n'),
+                    number: this.numLogs
+                };
                 // Emit the completed log immediately
                 if (this.onLogCallback) {
                     this.onLogCallback(completedLog);
@@ -39,7 +45,10 @@ class ApexLogSplitter {
     public finalize(): void {
         // Emit the last log if it exists
         if (this.currentLog.length > 0) {
-            const lastLog = this.currentLog.join('\n');
+            const lastLog: LogData = {
+                log: this.currentLog.join('\n'),
+                number: this.numLogs
+            };
             if (this.onLogCallback) {
                 this.onLogCallback(lastLog);
             }
@@ -58,5 +67,6 @@ class ApexLogSplitter {
 
 export {
     ApexLogSplitter,
-    LogCallback
+    LogCallback,
+    LogData
 };
