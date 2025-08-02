@@ -4,7 +4,11 @@ import { ApexLogParser, ParsedLog } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import * as path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Parses the command line arguments and returns the list of files to process.
