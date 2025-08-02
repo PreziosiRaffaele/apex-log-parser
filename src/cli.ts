@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import readline from 'readline';
 import { ApexLogParser, ParsedLog } from './index.js';
-import { normalizeLogInput, checkFileExists } from './cliUtils.js';
+import { ApexLogSplitter } from './ApexLogSplitter.js';
+import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 
@@ -137,31 +139,30 @@ async function processFiles(parser: ApexLogParser, files: string[]): Promise<voi
 }
 
 async function processStdin(parser: ApexLogParser): Promise<void> {
-    let logContent = '';
-    process.stdin.on('readable', () => {
-        let chunk;
-        while (null !== (chunk = process.stdin.read())) {
-            logContent += chunk;
-        }
+    const rl = readline.createInterface({
+        input: process.stdin,
+        crlfDelay: Infinity,
     });
 
-    process.stdin.on('end', () => {
-        try {
-            if (logContent.length !== 0) {
-                let cleanLog = normalizeLogInput(logContent);
-                const apexLog = parser.parse(cleanLog);
-                console.log(JSON.stringify(apexLog, null, 2));
-            }
-            process.exit(0);
-        } catch (err: any) {
-            console.error(`Error parsing from stdin: ${err.message}`);
-            process.exit(1);
-        }
+    const splitter = new ApexLogSplitter((log) => {
+        const apexLog = parser.parse(log);
+        console.log(JSON.stringify(apexLog, null, 2));
     });
 
-    process.stdin.on('error', (err) => {
+    rl.on('line', (line) => {
+        line = cleanAnsiCodes(line);
+        splitter.processLine(line);
+    });
+
+    rl.on('error', (err) => {
         console.error(`Error reading from stdin: ${err.message}`);
         process.exit(1);
+    });
+
+    rl.on('close', async () => {
+        splitter.finalize();
+        await new Promise(resolve => process.stdout.write('', resolve));
+        process.exit(0);
     });
 }
 

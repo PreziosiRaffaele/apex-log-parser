@@ -8,7 +8,7 @@ export function normalizeLogInput(logText: string): string {
     return logText;
 }
 
-function cleanAnsiCodes(logText: string): string {
+export function cleanAnsiCodes(logText: string): string {
     if (!logText) return '';
     return logText.replace(regex, '');
 }
