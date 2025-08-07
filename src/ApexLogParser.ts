@@ -400,7 +400,7 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'SOQL',
-            name: `SOQL on ${object}`, 
+            name: `Query on ${object}`,
             query,
             object,
             rows: undefined,
