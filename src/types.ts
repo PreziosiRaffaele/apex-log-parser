@@ -60,7 +60,6 @@ export interface TreeNode {
     object?: string;
     rows?: number;
     operation?: string;
-    message?: string;
     timeStart?: number;
     timeEnd?: number;
     durationMs?: number;

@@ -93,6 +93,25 @@ To get the total execution time for a transaction:
 sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.meta.durationMs'
 ```
 
+### Tree View Output
+
+For a more visual representation of the execution flow, you can use the `--tree` flag. This is especially useful for understanding the hierarchy of method calls and code unit execution.
+
+```bash
+apex-log-parser -f mylog.log --tree
+```
+
+This will produce an output that visually represents the execution tree, including duration and percentage of total execution time for each node:
+
+```
+ROOT(00001) [150ms|100%] ████████████████████
+├── EXECUTION(00002) [150ms|100%] ████████████████████
+│   ├── CODE_UNIT(00003) MyTrigger on Account trigger event BeforeInsert for [new] [70ms|46%] █████████
+│   │   └── DML(00004) [50ms|33%] ████████
+│   └── CODE_UNIT(00005) AnotherClass.someMethod [80ms|53%] ███████████
+│       └── SOQL(00006) SOQL on Contact [20ms|13%] █
+```
+
 ## Event Types
 
 The `event` property in the JSON output corresponds to the type of log event. You can use these values to filter the output with tools like `jq`. Here are the possible event types:

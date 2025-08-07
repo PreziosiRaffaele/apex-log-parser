@@ -45,11 +45,25 @@ export function extractObject(soqlString: string): string {
         return '';
     }
 
-    const cleanQuery = soqlString.trim();
-    const fromRegex = /\bselect\b.*?\bfrom\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)/i;
-    const match = cleanQuery.match(fromRegex);
-    return match?.[1] ? match[1].trim() : '';
+    let cleanQuery = soqlString.trim();
+
+    // Remove everything from WHERE clause onwards (case-insensitive)
+    const whereIndex = cleanQuery.search(/\bwhere\b/i);
+    if (whereIndex !== -1) {
+        cleanQuery = cleanQuery.substring(0, whereIndex).trim();
+    }
+
+    // Find the last occurrence of FROM (case-insensitive)
+    const lastFromMatch = cleanQuery.match(/.*\bfrom\s+/i);
+    if (!lastFromMatch) {
+        return '';
+    }
+
+    // Extract everything after the last FROM and trim
+    return cleanQuery.substring(lastFromMatch[0].length).trim();
 }
+
+
 
 /**
  * Extract the number of rows from strings like "Rows: 5" or "@37:5".
@@ -82,7 +96,7 @@ export function sanitizeString(str: string): string {
  * @param timestamp The timestamp of the event.
  * @returns A complete NamespaceGovernorLimits object.
  */
-export function parseGovernorLimits(limitUsageString: string): LimitsObject  {
+export function parseGovernorLimits(limitUsageString: string): LimitsObject {
     const defaultLimitDetails: LimitDetail = {
         current: 0,
         max: 0,
@@ -144,7 +158,7 @@ export function parseGovernorLimits(limitUsageString: string): LimitsObject  {
         // Skip if parsing failed
         if (isNaN(current) || isNaN(max)) return;
 
-        const type = limitTypeByLogString[limitType]; 
+        const type = limitTypeByLogString[limitType];
 
         limitsObject[type] = {
             current,

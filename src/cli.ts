@@ -2,6 +2,7 @@
 import readline from 'readline';
 import { ApexLogParser, ParsedLog } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
+import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
@@ -10,26 +11,33 @@ import * as path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type ParsedArgs = {
+    files: string[];
+    tree: boolean;
+}
+
 /**
- * Parses the command line arguments and returns the list of files to process.
- * If no -f flag is provided, returns an empty array.
+ * Parses the command line arguments and returns the parsed arguments.
  * @param args The command line arguments.
- * @returns The list of files to process.
+ * @returns The parsed arguments including files and tree flag.
  */
-function parseArgs(args: string[]): string[] {
+function parseArgs(args: string[]): ParsedArgs {
     if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
     if (args.indexOf('-v') !== -1 || args.indexOf('--version') !== -1) showVersion();
+
+    const tree = args.indexOf('--tree') !== -1;
     const fIndex = args.indexOf('-f');
-    if (fIndex === -1) return [];
 
     const files: string[] = [];
-    for (let i = fIndex + 1; i < args.length; i++) {
-        const arg = args[i];
-        if (arg.startsWith('-')) break;
-        files.push(arg);
+    if (fIndex !== -1) {
+        for (let i = fIndex + 1; i < args.length; i++) {
+            const arg = args[i];
+            if (arg.startsWith('-')) break;
+            files.push(arg);
+        }
     }
 
-    return files;
+    return { files, tree };
 }
 
 function showVersion(): never {
@@ -46,7 +54,7 @@ function showVersion(): never {
 
 function showUsage(): never {
     console.error(`
-Usage: apex-log-parser [-f <file1> [file2] ...]
+Usage: apex-log-parser [-f <file1> [file2] ...] [--tree]
 
 Description:
   Parses one or more Apex log files and outputs the structured log data as JSON.
@@ -56,6 +64,7 @@ Options:
   -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
                           Multiple files can be provided, separated by spaces.
                           Only files with a '.log' extension will be processed.
+  --tree                  Output the parsed log in tree format instead of JSON.
 
 Examples:
   Parse a single log file:
@@ -66,8 +75,11 @@ Examples:
 
   Parse from stdin:
     sf apex get log --number 1 -o MyOrg | apex-log-parser
+
+  Output in tree format:
+    apex-log-parser -f mylog.log --tree
 `);
-    process.exit(1);
+    process.exit(0);
 }
 
 async function parseFile(parser: ApexLogParser, filePath: string): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {
@@ -101,7 +113,15 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
     return exists;
 }
 
-async function processFiles(parser: ApexLogParser, files: string[]): Promise<void> {
+function outputResult(data: ParsedLog, useTree: boolean): void {
+    if (useTree) {
+        console.log(new TreeRenderer().renderTree(data));
+    } else {
+        console.log(JSON.stringify(data, null, 2));
+    }
+}
+
+async function processFiles(parser: ApexLogParser, files: string[], tree: boolean): Promise<void> {
     const existingFiles: string[] = [];
     let hasErrors = false;
 
@@ -124,7 +144,7 @@ async function processFiles(parser: ApexLogParser, files: string[]): Promise<voi
     for (const filePath of existingFiles) {
         const result = await parseFile(parser, filePath);
         if (result.success) {
-            console.log(JSON.stringify(result.data, null, 2));
+            outputResult(result.data, tree);
             successfulParses++;
         } else {
             hasErrors = true;
@@ -142,7 +162,7 @@ async function processFiles(parser: ApexLogParser, files: string[]): Promise<voi
     }
 }
 
-async function processStdin(parser: ApexLogParser): Promise<void> {
+async function processStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
     const rl = readline.createInterface({
         input: process.stdin,
         crlfDelay: Infinity,
@@ -150,7 +170,7 @@ async function processStdin(parser: ApexLogParser): Promise<void> {
 
     const splitter = new ApexLogSplitter((logData: LogData) => {
         const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number);
-        console.log(JSON.stringify(apexLog, null, 2));
+        outputResult(apexLog, tree);
     });
 
     rl.on('line', (line) => {
@@ -172,7 +192,7 @@ async function processStdin(parser: ApexLogParser): Promise<void> {
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const files = parseArgs(args);
+    const { files, tree } = parseArgs(args);
 
     const parser = new ApexLogParser();
 
@@ -180,9 +200,9 @@ async function main(): Promise<void> {
         if (process.stdin.isTTY) {
             process.exit(0);
         }
-        await processStdin(parser);
+        await processStdin(parser, tree);
     } else {
-        await processFiles(parser, files);
+        await processFiles(parser, files, tree);
     }
 }
 

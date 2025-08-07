@@ -301,7 +301,7 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'EXCEPTION',
-            message: sanitizeString(eventData[eventData.length - 1]),
+            name: sanitizeString(eventData[eventData.length - 1]),
             timeStart: timestamp,
         };
 
@@ -367,14 +367,18 @@ export class ApexLogParser {
     }
 
     private handleDmlBegin(timestamp: number, eventData: string[]): void {
+        const operation = eventData[eventData.length - 3].split(':')[1];
+        const object = eventData[eventData.length - 2].split(':')[1];
+        const rows = extractRows(eventData[eventData.length - 1]);
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'DML',
+            name: `${operation} on ${object} (${rows} rows)`,
             lineNumber: extractLineNumber(eventData[0]),
-            operation: eventData[eventData.length - 3].split(':')[1],
-            object: eventData[eventData.length - 2].split(':')[1],
-            rows: extractRows(eventData[eventData.length - 1]),
+            operation, 
+            object, 
+            rows, 
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -396,6 +400,7 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'SOQL',
+            name: `SOQL on ${object}`, 
             query,
             object,
             rows: undefined,

@@ -1,17 +1,15 @@
 export class IdGenerator {
-    private prefix: string;
     private padding: number;
     private counter: number;
 
-    constructor(prefix = 'evt', padding = 5) {
-        this.prefix = prefix;
+    constructor(padding = 5) {
         this.padding = padding;
         this.counter = 0;
     }
 
     next() {
         this.counter++;
-        return `${this.prefix}_${this.counter.toString().padStart(this.padding, '0')}`;
+        return `${this.counter.toString().padStart(this.padding, '0')}`;
     }
 
     reset() {
