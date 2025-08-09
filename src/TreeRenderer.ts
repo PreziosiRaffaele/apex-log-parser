@@ -102,7 +102,7 @@ export class TreeRenderer {
         if (!rootNode) return '';
         const totalDuration = parsedLog.meta.durationMs;
         const lines: string[] = [];
-        const terminalWidth = process.stdout.columns || 80;
+        const terminalWidth = process.stdout.columns || 160;
 
         // Render root node without tree branches
         lines.push(this.formatNodeLine(rootNode, totalDuration, terminalWidth));
