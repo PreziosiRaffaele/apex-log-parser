@@ -81,16 +81,27 @@ To get all `SOQL` events:
 sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.events[] | select(.event === "SOQL")'
 ```
 
-To get all `SOQL` events that took longer than 50ms:
+To get all `DML` events that took longer than 1 second:
 
 ```bash
-sf apex get log --number 25 -o AliasOrg | apex-log-parser | jq '.events[] | select(.event === "SOQL" and .duration.total > 50)'
+sf apex get log --number 25 -o AliasOrg | apex-log-parser | jq '.events[] | select(.event === "DML" and .duration.total > 1000)'
 ```
 
 To get the total execution time for a transaction:
 
 ```bash
 sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.meta.durationMs'
+```
+
+Group queries by object (indetifying candidates for caching):
+
+```bash
+apex-log-parser -f .sfdx/tools/debug/logs/* | jq -s '
+  [ .[] | .events[] | select(.type=="SOQL" and .object != null) | .object ]
+  | group_by(.)
+  | map({object: .[0], count: length})
+  | sort_by(.count)
+' 
 ```
 
 ### Tree View Output
