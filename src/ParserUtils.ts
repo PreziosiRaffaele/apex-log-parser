@@ -60,7 +60,7 @@ export function extractObject(soqlString: string): string {
     }
 
     // Extract everything after the last FROM and trim
-    return cleanQuery.substring(lastFromMatch[0].length).trim();
+    return cleanQuery.substring(lastFromMatch[0].length).trim().toLowerCase();
 }
 
 
