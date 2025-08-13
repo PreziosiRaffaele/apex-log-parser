@@ -53,6 +53,7 @@ export interface TreeNode {
     namedCredentialResponse?: string;
     namedCredentialResponseDetails?: string;
     responseDetails?: string;
+    exceptionType?: string;
     name?: string;
     method?: string;
     lineNumber?: number;

@@ -297,11 +297,13 @@ export class ApexLogParser {
 
     private handleFatalError(timestamp: number, eventData: string[]): void {
         // Create an EXCEPTION node so that the fatal error is captured in the tree
+        const exceptionMessage = sanitizeString(eventData[eventData.length - 1]);
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'EXCEPTION',
-            name: sanitizeString(eventData[eventData.length - 1]),
+            name: exceptionMessage,
+            exceptionType: exceptionMessage.substring(0, exceptionMessage.indexOf(':')),
             timeStart: timestamp,
         };
 
