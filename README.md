@@ -78,13 +78,13 @@ The JSON output can be piped to `jq` for powerful filtering and manipulation.
 To get all `SOQL` events:
 
 ```bash
-sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.events[] | select(.event === "SOQL")'
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.events[] | select(.type == "SOQL")'
 ```
 
 To get all `DML` events that took longer than 1 second:
 
 ```bash
-sf apex get log --number 25 -o AliasOrg | apex-log-parser | jq '.events[] | select(.event === "DML" and .duration.total > 1000)'
+sf apex get log --number 25 -o AliasOrg | apex-log-parser | jq '.events[] | select(.type == "DML" and .durationMs > 1000)'
 ```
 
 To get the total execution time for a transaction:
@@ -125,14 +125,15 @@ ROOT(00001) [150ms|100%] ██████████████████�
 
 ## Event Types
 
-The `event` property in the JSON output corresponds to the type of log event. You can use these values to filter the output with tools like `jq`. Here are the possible event types:
+The `type` property in the JSON output corresponds to the kind of log node. You can use these values to filter the output with tools like `jq`. Here are the possible event types:
 
 *   `ROOT`: The root of the execution tree.
 *   `CODE_UNIT`: A unit of code execution, such as a trigger or a class method.
 *   `METHOD`: A method call.
 *   `SOQL`: A SOQL query.
 *   `DML`: A DML statement (e.g., insert, update, delete).
-*   `EXCEPTION`: An exception that was thrown.
+*   `EXCEPTION_THROWN`: An exception that was thrown but may be handled; execution continues. Includes `name` and `exceptionType`.
+*   `FATAL_ERROR`: A terminal failure (unhandled exception, governor limit, etc.). Execution stops and the stack unwinds. Includes `name` and `exceptionType`.
 *   `EXECUTION`: The start and end of the entire execution.
 *   `FLOW`: A flow execution.
 *   `FLOW_ELEMENT`: An element within a flow.

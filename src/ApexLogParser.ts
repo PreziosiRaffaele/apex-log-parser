@@ -154,6 +154,9 @@ export class ApexLogParser {
             case 'FATAL_ERROR':
                 this.handleFatalError(timestamp, eventData);
                 break;
+            case 'EXCEPTION_THROWN':
+                this.handleExceptionThrown(timestamp, eventData);
+                break;
             case 'ENTERING_MANAGED_PKG':
                 this.handleEnteringManagedPkg(timestamp, eventData);
                 break;
@@ -301,7 +304,7 @@ export class ApexLogParser {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
-            type: 'EXCEPTION',
+            type: 'FATAL_ERROR',
             name: exceptionMessage,
             exceptionType: exceptionMessage.substring(0, exceptionMessage.indexOf(':')),
             timeStart: timestamp,
@@ -321,6 +324,23 @@ export class ApexLogParser {
         ) {
             this.closeNode(timestamp);
         }
+    }
+
+    private handleExceptionThrown(timestamp: number, eventData: string[]): void {
+        // Create an EXCEPTION node for thrown (but potentially handled) exceptions
+        const exceptionMessage = sanitizeString(eventData[eventData.length - 1]);
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'EXCEPTION_THROWN',
+            name: exceptionMessage,
+            exceptionType: exceptionMessage.substring(0, exceptionMessage.indexOf(':')),
+            timeStart: timestamp,
+        };
+
+        // Push as an instantaneous event and immediately close it
+        this.pushNode(node);
+        this.closeNode(timestamp);
     }
 
     private handleFlowStartInterviewBegin(timestamp: number, eventData: string[]): void {

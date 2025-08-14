@@ -24,7 +24,8 @@ export type NodeType =
   | 'METHOD'
   | 'SOQL'
   | 'DML'
-  | 'EXCEPTION'
+  | 'EXCEPTION_THROWN' // non-fatal, may be caught
+  | 'FATAL_ERROR' // terminal failure
   | 'EXECUTION'
   | 'FLOW'
   | 'FLOW_ELEMENT'
