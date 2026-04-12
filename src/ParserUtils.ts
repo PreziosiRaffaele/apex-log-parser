@@ -20,7 +20,16 @@ export function extractTimestamp(executionTimePart: string): number {
     return timestampNs;
 }
 
-export function covertNsToMs(timestampNs: number): number {
+/**
+ * Extract the wall-clock timestamp prefix from a log line.
+ * Example execution time part: "07:29:05.123 (813678225)" -> "07:29:05.123"
+ */
+export function extractClockTime(executionTimePart: string): string | undefined {
+    const match = executionTimePart.match(/^(\d{2}:\d{2}:\d{2}\.\d+)/);
+    return match?.[1];
+}
+
+export function convertNsToMs(timestampNs: number): number {
     return Number.isFinite(timestampNs) ? timestampNs / 1_000_000 : 0; // convert ns to ms
 }
 

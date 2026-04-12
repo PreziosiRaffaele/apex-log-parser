@@ -100,7 +100,7 @@ export class TreeRenderer {
     public renderTree(parsedLog: ParsedLog): string {
         const rootNode = parsedLog.tree;
         if (!rootNode) return '';
-        const totalDuration = parsedLog.meta.durationMs;
+        const totalDuration = parsedLog.summary.durationMs;
         const lines: string[] = [];
         const terminalWidth = process.stdout.columns || 160;
 

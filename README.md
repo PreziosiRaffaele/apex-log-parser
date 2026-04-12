@@ -90,7 +90,7 @@ sf apex get log --number 25 -o AliasOrg | apex-log-parser | jq '.events[] | sele
 To get the total execution time for a transaction:
 
 ```bash
-sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.meta.durationMs'
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser | jq '.summary.durationMs'
 ```
 
 Group queries by object (indetifying candidates for caching):

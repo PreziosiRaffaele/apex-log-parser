@@ -1,16 +1,28 @@
-import { removeTrailingNewlines, sanitizeString, extractTimestamp, extractLineNumber, covertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
+import { removeTrailingNewlines, sanitizeString, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
-import { LogLevel, ParsedLog, TreeNode, EventNode } from './types.js';
+import { LogLevel, ParsedLog, ParsedLogSummary, TreeNode, EventNode } from './types.js';
+
+type ParserSummaryState = {
+    filename: string;
+    user?: string;
+    startTime?: string;
+    logLevels: LogLevel[];
+};
+
+function createEmptySummaryState(): ParserSummaryState {
+    return {
+        filename: '',
+        logLevels: [],
+    };
+}
 
 
 export class ApexLogParser {
-    private user?: string;
-    private meta: Record<string, string> = {};
+    private summary: ParserSummaryState = createEmptySummaryState();
     private logSize?: number;
     private currentNode!: TreeNode;
     private rootNode?: TreeNode;
     private nodeStack: TreeNode[] = [];
-    private logLevels: LogLevel[] = [];
     private idGenerator: IdGenerator = new IdGenerator();
 
     private mapTypeByTypeExit: Map<string, string> = new Map([
@@ -33,7 +45,7 @@ export class ApexLogParser {
     public parse(log: string, filename: string = 'stdin'): ParsedLog {
         this.reset();
 
-        this.meta.filename = filename;
+        this.summary.filename = filename;
         this.logSize = Buffer.byteLength(log, 'utf8');
 
         const firstNewlineIndex = log.indexOf('\n');
@@ -56,14 +68,17 @@ export class ApexLogParser {
         // Round duration to 3 decimal places
         durationMs = Math.round((durationMs + Number.EPSILON) * 1000) / 1000;
 
+        const summary: ParsedLogSummary = {
+            filename: this.summary.filename,
+            user: this.summary.user,
+            startTime: this.summary.startTime,
+            durationMs,
+            sizeMb: this.logSize ? parseFloat((this.logSize / (1000 * 1000)).toFixed(5)) : 0,
+            logLevels: this.summary.logLevels,
+        };
+
         const output: ParsedLog = {
-            meta: {
-                filename: this.meta.filename,
-                durationMs,
-                sizeMb: this.logSize ? parseFloat((this.logSize / (1000 * 1000)).toFixed(5)) : 0,
-            },
-            logLevel: this.logLevels,
-            user: this.user,
+            summary,
             tree: this.rootNode,
             events: this.rootNode ? this.flattenEvents(this.rootNode) : [],
         };
@@ -73,7 +88,7 @@ export class ApexLogParser {
 
 
     private reset(): void {
-        this.meta = {};
+        this.summary = createEmptySummaryState();
         this.idGenerator.reset();
         const rootNode: TreeNode = {
             id: this.idGenerator.next(),
@@ -83,8 +98,6 @@ export class ApexLogParser {
         this.rootNode = rootNode;
         this.currentNode = rootNode;
         this.nodeStack = [rootNode];
-        this.user = undefined;
-        this.logLevels = [];
     }
 
     private parseLine(line: string): void {
@@ -92,6 +105,9 @@ export class ApexLogParser {
         if (parts.length < 2) return;
 
         const executionTimePart = parts[0];
+        if (!this.summary.startTime) {
+            this.summary.startTime = extractClockTime(executionTimePart);
+        }
         const timestamp = extractTimestamp(executionTimePart);
         const eventType = parts[1];
         const eventData: string[] = parts.slice(2);
@@ -371,7 +387,7 @@ export class ApexLogParser {
         for (const pair of levelPairs) {
             const [type, level] = pair.split(',');
             if (type && level) {
-                this.logLevels.push({ type, level } as LogLevel);
+                this.summary.logLevels.push({ type, level } as LogLevel);
             }
         }
     }
@@ -434,7 +450,7 @@ export class ApexLogParser {
     }
 
     private handleUserInfo(eventData: string[]): void {
-        this.user = eventData[eventData.length - 3];
+        this.summary.user = eventData[eventData.length - 3];
     }
 
 
@@ -485,7 +501,7 @@ export class ApexLogParser {
 
         if (timestamp) {
             node.timeEnd = timestamp;
-            const rawDuration = node.timeStart ? covertNsToMs(timestamp - node.timeStart) : 0;
+            const rawDuration = node.timeStart ? convertNsToMs(timestamp - node.timeStart) : 0;
             // Round duration to 3 decimal places
             node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
         }
@@ -509,7 +525,7 @@ export class ApexLogParser {
     private flattenEvents(node: TreeNode): EventNode[] {
         const { children, ...eventWithoutChildren } = node;
         const eventNode: EventNode = eventWithoutChildren;
-        eventNode.source = this.meta.filename;
+        eventNode.source = this.summary.filename;
         // Skip the synthetic ROOT node from the output array
         const events: EventNode[] = node.type === 'ROOT' ? [] : [eventNode];
 

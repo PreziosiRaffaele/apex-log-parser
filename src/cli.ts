@@ -2,6 +2,7 @@
 import readline from 'readline';
 import { ApexLogParser, ParsedLog } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
+import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
 import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
@@ -24,6 +25,7 @@ type ParsedArgs = {
 function parseArgs(args: string[]): ParsedArgs {
     if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
     if (args.indexOf('-v') !== -1 || args.indexOf('--version') !== -1) showVersion();
+    if (args.indexOf('--schema') !== -1) showSchema();
 
     const tree = args.indexOf('--tree') !== -1;
     const fIndex = args.indexOf('-f');
@@ -53,32 +55,12 @@ function showVersion(): never {
 }
 
 function showUsage(): never {
-    console.error(`
-Usage: apex-log-parser [-f <file1> [file2] ...] [--tree]
+    console.log(HELP_TEXT);
+    process.exit(0);
+}
 
-Description:
-  Parses one or more Apex log files and outputs the structured log data as JSON.
-  If no file is specified, the parser reads from stdin.
-
-Options:
-  -f <file1> [file2] ...  Specifies one or more Apex log files to parse.
-                          Multiple files can be provided, separated by spaces.
-                          Only files with a '.log' extension will be processed.
-  --tree                  Output the parsed log in tree format instead of JSON.
-
-Examples:
-  Parse a single log file:
-    apex-log-parser -f mylog.log
-
-  Parse multiple log files:
-    apex-log-parser -f log1.log log2.log log3.log
-
-  Parse from stdin:
-    sf apex get log --number 1 -o MyOrg | apex-log-parser
-
-  Output in tree format:
-    apex-log-parser -f mylog.log --tree
-`);
+function showSchema(): never {
+    console.log(SCHEMA_TEXT);
     process.exit(0);
 }
 

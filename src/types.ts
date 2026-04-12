@@ -74,18 +74,21 @@ export interface LogLevel {
     level: 'FINEST' | 'FINER' | 'FINE' | 'INFO' | 'INTERNAL' | 'DEBUG' | 'WARN' | 'ERROR' | 'FATAL';
 }
 
+export interface ParsedLogSummary {
+    filename: string;
+    user?: string;
+    startTime?: string;
+    durationMs: number;
+    sizeMb: number;
+    logLevels: LogLevel[];
+}
+
 // Event node without the recursive "children" property
 export type EventNode = Omit<TreeNode, 'children'> & {
     source?: string; // Optional since single file parsing won't have it
 };
 export interface ParsedLog {
-    meta: {
-        filename: string;
-        durationMs: number;
-        sizeMb: number;
-    };
-    logLevel: LogLevel[];
-    user?: string;
+    summary: ParsedLogSummary;
     tree?: TreeNode;
     // Flatten list of every event in the log without nested children
     events: EventNode[];
