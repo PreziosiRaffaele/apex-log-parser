@@ -21,9 +21,6 @@ Default JSON output:
 
 Notes:
   - JSON output is intended to be piped into jq
-  - Some events may have null durationMs when Salesforce does not report a duration
-  - LIMIT events are governor-limit snapshots; they are useful for limit analysis
-    but often noisy during performance triage
   - --tree prints a human-readable tree view instead of JSON
 
 Options:
@@ -92,8 +89,5 @@ Event types:
 
 Notes:
   - events is the best starting point for jq filtering, grouping, and aggregation
-  - tree is included in JSON output and rendered as text when using --tree
-  - durationMs may be null for events where Salesforce does not emit a duration
-  - LIMIT.limits contains snapshots keyed by governor-limit type with current, max,
-    and usagePercentage
+  - tree is included in the JSON output and rendered as human-readable text when using --tree
 `.trim();
