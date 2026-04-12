@@ -11,14 +11,20 @@
     "scripts": {
         "build": "tsc",
         "prepublishOnly": "npm run build",
-        "clean": "rm -rf dist"
+        "clean": "rm -rf dist",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix"
     },
     "files": [
         "dist/**/*"
     ],
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@types/node": "^20.19.4",
-        "typescript": "^5.8.3"
+        "eslint": "^10.2.0",
+        "globals": "^17.5.0",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.58.1"
     },
     "dependencies": {
         "ansi-regex": "^6.1.0"

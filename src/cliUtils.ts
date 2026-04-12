@@ -26,7 +26,7 @@ export async function checkFileExists(filePath: string): Promise<boolean> {
     try {
         await fs.access(filePath);
         return true;
-    } catch (err: any) {
+    } catch {
         console.error(`File not found: ${filePath}`);
         return false;
     }

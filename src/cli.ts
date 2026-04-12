@@ -69,9 +69,10 @@ async function parseFile(parser: ApexLogParser, filePath: string): Promise<{ suc
         const logContent = await fs.readFile(filePath, 'utf-8');
         const apexLog = parser.parse(logContent, path.basename(filePath));
         return { success: true, data: apexLog };
-    } catch (err: any) {
-        console.error(`Error parsing ${filePath}: ${err.message}`);
-        return { success: false, error: err.message };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error parsing ${filePath}: ${message}`);
+        return { success: false, error: message };
     }
 }
 
@@ -87,7 +88,7 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
             if (logSkipMessage) console.error(`Not a file: ${filePath}`);
             return false;
         }
-    } catch (err: any) {
+    } catch {
         if (logSkipMessage) console.error(`File not found: ${filePath}`);
         return false;
     }
@@ -188,7 +189,8 @@ async function main(): Promise<void> {
     }
 }
 
-main().catch((err: any) => {
-    console.error(`Unexpected error: ${err.message}`);
+main().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Unexpected error: ${message}`);
     process.exit(1);
 });
