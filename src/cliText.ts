@@ -15,7 +15,7 @@ Input:
   - When parsing multiple logs, use jq -s to collect results into an array
 
 Default JSON output:
-  - summary   per-log summary such as filename, user, startTime, durationMs, sizeMb, and logLevels
+  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, and logLevels
   - events    flat event stream for filtering, grouping, and aggregation with jq
   - tree      hierarchical execution view of the parsed log
 
@@ -29,6 +29,10 @@ Options:
       Files must use the .log extension.
   --tree
       Print a human-readable execution tree instead of JSON.
+  --input-format <raw|ndjson>
+      Select stdin parsing mode. raw splits concatenated Apex logs.
+      ndjson expects one JSON object per line with string fields logId and log.
+      The log field must contain the full Apex log as a JSON string with \n escapes.
   --schema
       Print the JSON output schema and field reference.
   -v, --version
@@ -45,6 +49,12 @@ Examples:
 
   Parse from stdin:
     sf apex get log --number 1 -o MyOrg | apex-log-parser
+
+  Parse NDJSON from stdin:
+    cat logs.ndjson | apex-log-parser --input-format ndjson
+
+  NDJSON line shape:
+    {"logId":"07Lxx0000001234AAA","log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}
 
   Parse recent Apex test logs from an org:
     sf debug retrieve -o MyOrg --query "SELECT Id FROM ApexLog WHERE Operation = 'ApexTestHandler' ORDER BY StartTime DESC LIMIT 5" | apex-log-parser
@@ -66,7 +76,7 @@ export const SCHEMA_TEXT = `
 JSON output schema:
   ParsedLog
     summary
-      filename    Input filename or stdin label for the parsed log
+      source      Input source identifier for the parsed log
       user        Salesforce user captured in the log when available
       startTime   Clock time of the first parsed log event in HH:MM:SS.mmm format
       durationMs  Total tracked execution time in milliseconds

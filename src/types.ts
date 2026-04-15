@@ -75,7 +75,7 @@ export interface LogLevel {
 }
 
 export interface ParsedLogSummary {
-    filename: string;
+    source: string;
     user?: string;
     startTime?: string;
     durationMs: number;
@@ -85,7 +85,7 @@ export interface ParsedLogSummary {
 
 // Event node without the recursive "children" property
 export type EventNode = Omit<TreeNode, 'children'> & {
-    source?: string; // Optional since single file parsing won't have it
+    source: string;
 };
 export interface ParsedLog {
     summary: ParsedLogSummary;

@@ -3,7 +3,7 @@ import { IdGenerator } from './IdGenerator.js';
 import { LogLevel, ParsedLog, ParsedLogSummary, TreeNode, EventNode } from './types.js';
 
 type ParserSummaryState = {
-    filename: string;
+    source: string;
     user?: string;
     startTime?: string;
     logLevels: LogLevel[];
@@ -11,7 +11,7 @@ type ParserSummaryState = {
 
 function createEmptySummaryState(): ParserSummaryState {
     return {
-        filename: '',
+        source: '',
         logLevels: [],
     };
 }
@@ -42,10 +42,10 @@ export class ApexLogParser {
         this.reset();
     }
 
-    public parse(log: string, filename: string = 'stdin'): ParsedLog {
+    public parse(log: string, source: string = 'stdin'): ParsedLog {
         this.reset();
 
-        this.summary.filename = filename;
+        this.summary.source = source;
         this.logSize = Buffer.byteLength(log, 'utf8');
 
         const firstNewlineIndex = log.indexOf('\n');
@@ -69,7 +69,7 @@ export class ApexLogParser {
         durationMs = Math.round((durationMs + Number.EPSILON) * 1000) / 1000;
 
         const summary: ParsedLogSummary = {
-            filename: this.summary.filename,
+            source: this.summary.source,
             user: this.summary.user,
             startTime: this.summary.startTime,
             durationMs,
@@ -483,19 +483,25 @@ export class ApexLogParser {
     }
 
     private handleNodeExit(timestamp: number, type: string): void {
-        if (this.nodeStack.length === 0) return;
+        if (this.nodeStack.length <= 1) return;
 
-        if (this.nodeStack[this.nodeStack.length - 1].type !== this.mapTypeByTypeExit.get(type)) {
-            while (this.nodeStack.length > 0 && this.nodeStack[this.nodeStack.length - 1].type !== this.mapTypeByTypeExit.get(type)) {
+        const expectedType = this.mapTypeByTypeExit.get(type);
+
+        if (this.nodeStack[this.nodeStack.length - 1].type !== expectedType) {
+            while (this.nodeStack.length > 1 && this.nodeStack[this.nodeStack.length - 1].type !== expectedType) {
                 this.closeNode(timestamp);
             }
+        }
+
+        if (this.nodeStack[this.nodeStack.length - 1].type !== expectedType) {
+            return;
         }
 
         this.closeNode(timestamp);
     }
 
     private closeNode(timestamp?: number): void {
-        if (this.nodeStack.length === 0) return;
+        if (this.nodeStack.length <= 1) return;
 
         const node = this.nodeStack.pop()!;
 
@@ -505,7 +511,7 @@ export class ApexLogParser {
             // Round duration to 3 decimal places
             node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
         }
-        this.currentNode = this.nodeStack[this.nodeStack.length - 1] ?? null;
+        this.currentNode = this.nodeStack[this.nodeStack.length - 1];
     }
 
     private pushNode(node: TreeNode): void {
@@ -524,8 +530,10 @@ export class ApexLogParser {
      */
     private flattenEvents(node: TreeNode): EventNode[] {
         const { children, ...eventWithoutChildren } = node;
-        const eventNode: EventNode = eventWithoutChildren;
-        eventNode.source = this.summary.filename;
+        const eventNode: EventNode = {
+            ...eventWithoutChildren,
+            source: this.summary.source,
+        };
         // Skip the synthetic ROOT node from the output array
         const events: EventNode[] = node.type === 'ROOT' ? [] : [eventNode];
 

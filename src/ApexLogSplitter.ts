@@ -3,6 +3,7 @@ type LogData = { log: string; number: number };
 
 class ApexLogSplitter {
     private currentLog: string[] = [];
+    private currentLogNumber: number = 0;
     private numLogs: number = 0;
     private onLogCallback?: LogCallback;
     private hasFoundFirstLog: boolean = false;
@@ -25,7 +26,7 @@ class ApexLogSplitter {
             if (this.hasFoundFirstLog && this.currentLog.length > 0) {
                 const completedLog: LogData = {
                     log: this.currentLog.join('\n'),
-                    number: this.numLogs
+                    number: this.currentLogNumber
                 };
                 // Emit the completed log immediately
                 if (this.onLogCallback) {
@@ -34,6 +35,7 @@ class ApexLogSplitter {
             }
             // Start new log
             this.currentLog = [line];
+            this.currentLogNumber = this.numLogs;
             this.hasFoundFirstLog = true; // Mark that we've found at least one log header
         } else if (this.hasFoundFirstLog) {
             // Only add lines if we have found the start of a log.
@@ -47,7 +49,7 @@ class ApexLogSplitter {
         if (this.currentLog.length > 0) {
             const lastLog: LogData = {
                 log: this.currentLog.join('\n'),
-                number: this.numLogs
+                number: this.currentLogNumber
             };
             if (this.onLogCallback) {
                 this.onLogCallback(lastLog);
@@ -61,6 +63,7 @@ class ApexLogSplitter {
 
     public reset(): void {
         this.currentLog = [];
+        this.currentLogNumber = 0;
         this.hasFoundFirstLog = false;
     }
 }

@@ -15,7 +15,13 @@ const __dirname = path.dirname(__filename);
 type ParsedArgs = {
     files: string[];
     tree: boolean;
+    inputFormat: 'raw' | 'ndjson';
 }
+
+type NdjsonInput = {
+    logId: string;
+    log: string;
+};
 
 /**
  * Parses the command line arguments and returns the parsed arguments.
@@ -29,6 +35,17 @@ function parseArgs(args: string[]): ParsedArgs {
 
     const tree = args.indexOf('--tree') !== -1;
     const fIndex = args.indexOf('-f');
+    const inputFormatIndex = args.indexOf('--input-format');
+    let inputFormat: 'raw' | 'ndjson' = 'raw';
+
+    if (inputFormatIndex !== -1) {
+        const value = args[inputFormatIndex + 1];
+        if (value !== 'raw' && value !== 'ndjson') {
+            console.error('Invalid value for --input-format. Expected "raw" or "ndjson".');
+            process.exit(1);
+        }
+        inputFormat = value;
+    }
 
     const files: string[] = [];
     if (fIndex !== -1) {
@@ -39,7 +56,7 @@ function parseArgs(args: string[]): ParsedArgs {
         }
     }
 
-    return { files, tree };
+    return { files, tree, inputFormat };
 }
 
 function showVersion(): never {
@@ -146,6 +163,10 @@ async function processFiles(parser: ApexLogParser, files: string[], tree: boolea
 }
 
 async function processStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
+    await processRawStdin(parser, tree);
+}
+
+async function processRawStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
     const rl = readline.createInterface({
         input: process.stdin,
         crlfDelay: Infinity,
@@ -173,9 +194,74 @@ async function processStdin(parser: ApexLogParser, tree: boolean): Promise<void>
     });
 }
 
+function parseNdjsonLine(line: string, lineNumber: number): NdjsonInput {
+    let parsed: unknown;
+
+    try {
+        parsed = JSON.parse(line);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`NDJSON parse error on line ${lineNumber}: invalid JSON (${message})`, {
+            cause: error,
+        });
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: expected a JSON object`);
+    }
+
+    const { logId, log } = parsed as Partial<NdjsonInput>;
+
+    if (logId === undefined) {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "logId"`);
+    }
+    if (typeof logId !== 'string') {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: field "logId" must be a string`);
+    }
+    if (log === undefined) {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "log"`);
+    }
+    if (typeof log !== 'string') {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: field "log" must be a string`);
+    }
+
+    return { logId, log };
+}
+
+async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        crlfDelay: Infinity,
+    });
+
+    let lineNumber = 0;
+
+    try {
+        for await (const rawLine of rl) {
+            lineNumber++;
+            const line = cleanAnsiCodes(rawLine).trim();
+
+            if (line.length === 0) {
+                continue;
+            }
+
+            const { logId, log } = parseNdjsonLine(line, lineNumber);
+            const apexLog = parser.parse(log, logId);
+            outputResult(apexLog, tree);
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(message);
+        process.exit(1);
+    }
+
+    await new Promise(resolve => process.stdout.write('', resolve));
+    process.exit(0);
+}
+
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree } = parseArgs(args);
+    const { files, tree, inputFormat } = parseArgs(args);
 
     const parser = new ApexLogParser();
 
@@ -183,7 +269,11 @@ async function main(): Promise<void> {
         if (process.stdin.isTTY) {
             process.exit(0);
         }
-        await processStdin(parser, tree);
+        if (inputFormat === 'ndjson') {
+            await processNdjsonStdin(parser, tree);
+        } else {
+            await processStdin(parser, tree);
+        }
     } else {
         await processFiles(parser, files, tree);
     }
