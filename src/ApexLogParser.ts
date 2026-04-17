@@ -1,19 +1,19 @@
 import { removeTrailingNewlines, sanitizeString, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
-import { LogLevel, ParsedLog, ParsedLogSummary, TreeNode, EventNode } from './types.js';
+import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode } from './types.js';
 
 type ParserSummaryState = {
     source: string;
     user?: string;
     startTime?: string;
-    logLevels: LogLevel[];
+    logLevels: LogLevelsMap;
 };
 
 function createEmptySummaryState(): ParserSummaryState {
-    return {
-        source: '',
-        logLevels: [],
-    };
+        return {
+            source: '',
+            logLevels: {},
+        };
 }
 
 
@@ -387,7 +387,7 @@ export class ApexLogParser {
         for (const pair of levelPairs) {
             const [type, level] = pair.split(',');
             if (type && level) {
-                this.summary.logLevels.push({ type, level } as LogLevel);
+                this.summary.logLevels[type as LogLevel['type']] = level as LogLevel['level'];
             }
         }
     }

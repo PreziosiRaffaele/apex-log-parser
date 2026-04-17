@@ -110,6 +110,16 @@ printf '%s\n' '{"Id":"07Lxx0000001234AAA","Request":"API","Operation":"ApexTestH
 
 In this mode, `summary.source` and each event `source` are set to `Id`, and any optional NDJSON metadata is copied into `summary`.
 
+`summary.logLevels` is emitted as a compact object keyed by debug category, for example:
+
+```json
+"logLevels": {
+  "APEX_CODE": "FINEST",
+  "APEX_PROFILING": "INFO",
+  "CALLOUT": "FINEST"
+}
+```
+
 ### Filtering with `jq`
 
 The JSON output can be piped to `jq` for powerful filtering and manipulation.
