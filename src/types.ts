@@ -74,6 +74,8 @@ export interface LogLevel {
     level: 'FINEST' | 'FINER' | 'FINE' | 'INFO' | 'INTERNAL' | 'DEBUG' | 'WARN' | 'ERROR' | 'FATAL';
 }
 
+export type LogLevelsMap = Partial<Record<LogLevel['type'], LogLevel['level']>>;
+
 export interface ParsedLogSummary {
     source: string;
     user?: string;
@@ -84,7 +86,7 @@ export interface ParsedLogSummary {
     status?: string;
     durationMs: number;
     sizeMb: number;
-    logLevels: LogLevel[];
+    logLevels: LogLevelsMap;
 }
 
 // Event node without the recursive "children" property

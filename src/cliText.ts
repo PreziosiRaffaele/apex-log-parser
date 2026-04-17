@@ -15,7 +15,7 @@ Input:
   - When parsing multiple logs, use jq -s to collect results into an array
 
 Default JSON output:
-  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, logLevels, and optional NDJSON metadata
+  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, and optional NDJSON metadata
   - events    flat event stream for filtering, grouping, and aggregation with jq
   - tree      hierarchical execution view of the parsed log
 
@@ -88,9 +88,7 @@ JSON output schema:
       status      NDJSON Status field when provided
       durationMs  Total tracked execution time in milliseconds
       sizeMb      Raw log size in megabytes
-      logLevels[]
-        type      Salesforce debug category
-        level     Configured level for that category
+      logLevels  Object keyed by Salesforce debug category with the configured level as value
     events[]
       Flat list of all parsed events. Common fields include:
       id, parentId, type, name, method, lineNumber, query, object, rows,
