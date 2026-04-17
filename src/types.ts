@@ -78,6 +78,10 @@ export interface ParsedLogSummary {
     source: string;
     user?: string;
     startTime?: string;
+    request?: string;
+    operation?: string;
+    lastModifiedDate?: string;
+    status?: string;
     durationMs: number;
     sizeMb: number;
     logLevels: LogLevel[];

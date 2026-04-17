@@ -79,31 +79,36 @@ For tools that can provide both a log body and a real log identifier, use `--inp
 
 Each line must have this shape:
 
-- `logId`: string
-- `log`: string
+- `Id`: string
+- `Log`: string
+- `Request`: string, optional
+- `Operation`: string, optional
+- `LastModifiedDate`: string, optional
+- `Status`: string, optional
 
 Example line:
 
 ```json
-{"logId":"07Lxx0000001234AAA","log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}
+{"Id":"07Lxx0000001234AAA","Request":"API","Operation":"ApexTestHandler","LastModifiedDate":"2026-04-17T09:00:00.000+0000","Status":"Success","Log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}
 ```
 
 Notes:
 
-- `logId` becomes `summary.source` and each event `source`
-- `log` must contain the full Apex log as a JSON string
-- Newlines inside `log` must be escaped as `\n` in the JSON payload
+- `Id` becomes `summary.source` and each event `source`
+- `Request`, `Operation`, `LastModifiedDate`, and `Status` map to `summary.request`, `summary.operation`, `summary.lastModifiedDate`, and `summary.status`
+- `Log` must contain the full Apex log as a JSON string
+- Newlines inside `Log` must be escaped as `\n` in the JSON payload
 - Blank lines are ignored
-- Invalid JSON, missing fields, or non-string `logId` / `log` values cause the command to exit with an error
+- Invalid JSON, missing required fields, or non-string NDJSON field values cause the command to exit with an error
 
 Example:
 
 ```bash
-printf '%s\n' '{"logId":"07Lxx0000001234AAA","log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}' \
+printf '%s\n' '{"Id":"07Lxx0000001234AAA","Request":"API","Operation":"ApexTestHandler","LastModifiedDate":"2026-04-17T09:00:00.000+0000","Status":"Success","Log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}' \
   | apex-log-parser --input-format ndjson
 ```
 
-In this mode, `summary.source` and each event `source` are set to `logId`.
+In this mode, `summary.source` and each event `source` are set to `Id`, and any optional NDJSON metadata is copied into `summary`.
 
 ### Filtering with `jq`
 
