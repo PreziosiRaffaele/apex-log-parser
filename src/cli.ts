@@ -19,9 +19,15 @@ type ParsedArgs = {
 }
 
 type NdjsonInput = {
-    logId: string;
-    log: string;
+    Id: string;
+    Log: string;
+    Request?: string;
+    Operation?: string;
+    LastModifiedDate?: string;
+    Status?: string;
 };
+
+const OPTIONAL_NDJSON_STRING_FIELDS = ['Request', 'Operation', 'LastModifiedDate', 'Status'] as const;
 
 /**
  * Parses the command line arguments and returns the parsed arguments.
@@ -210,22 +216,30 @@ function parseNdjsonLine(line: string, lineNumber: number): NdjsonInput {
         throw new Error(`NDJSON parse error on line ${lineNumber}: expected a JSON object`);
     }
 
-    const { logId, log } = parsed as Partial<NdjsonInput>;
+    const ndjsonInput = parsed as Partial<NdjsonInput>;
+    const { Id, Log } = ndjsonInput;
 
-    if (logId === undefined) {
-        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "logId"`);
+    if (Id === undefined) {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "Id"`);
     }
-    if (typeof logId !== 'string') {
-        throw new Error(`NDJSON parse error on line ${lineNumber}: field "logId" must be a string`);
+    if (typeof Id !== 'string') {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: field "Id" must be a string`);
     }
-    if (log === undefined) {
-        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "log"`);
+    if (Log === undefined) {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: missing required field "Log"`);
     }
-    if (typeof log !== 'string') {
-        throw new Error(`NDJSON parse error on line ${lineNumber}: field "log" must be a string`);
+    if (typeof Log !== 'string') {
+        throw new Error(`NDJSON parse error on line ${lineNumber}: field "Log" must be a string`);
     }
 
-    return { logId, log };
+    for (const fieldName of OPTIONAL_NDJSON_STRING_FIELDS) {
+        const fieldValue = ndjsonInput[fieldName];
+        if (fieldValue !== undefined && typeof fieldValue !== 'string') {
+            throw new Error(`NDJSON parse error on line ${lineNumber}: field "${fieldName}" must be a string`);
+        }
+    }
+
+    return ndjsonInput as NdjsonInput;
 }
 
 async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
@@ -245,8 +259,12 @@ async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise
                 continue;
             }
 
-            const { logId, log } = parseNdjsonLine(line, lineNumber);
-            const apexLog = parser.parse(log, logId);
+            const { Id, Log, Request, Operation, LastModifiedDate, Status } = parseNdjsonLine(line, lineNumber);
+            const apexLog = parser.parse(Log, Id);
+            apexLog.summary.request = Request;
+            apexLog.summary.operation = Operation;
+            apexLog.summary.lastModifiedDate = LastModifiedDate;
+            apexLog.summary.status = Status;
             outputResult(apexLog, tree);
         }
     } catch (error) {

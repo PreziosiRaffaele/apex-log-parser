@@ -15,7 +15,7 @@ Input:
   - When parsing multiple logs, use jq -s to collect results into an array
 
 Default JSON output:
-  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, and logLevels
+  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, logLevels, and optional NDJSON metadata
   - events    flat event stream for filtering, grouping, and aggregation with jq
   - tree      hierarchical execution view of the parsed log
 
@@ -31,8 +31,11 @@ Options:
       Print a human-readable execution tree instead of JSON.
   --input-format <raw|ndjson>
       Select stdin parsing mode. raw splits concatenated Apex logs.
-      ndjson expects one JSON object per line with string fields logId and log.
-      The log field must contain the full Apex log as a JSON string with \n escapes.
+      ndjson expects one JSON object per line with string fields Id and Log.
+      Optional string fields Request, Operation, LastModifiedDate, and Status
+      are mapped to summary.request, summary.operation,
+      summary.lastModifiedDate, and summary.status.
+      The Log field must contain the full Apex log as a JSON string with \n escapes.
   --schema
       Print the JSON output schema and field reference.
   -v, --version
@@ -54,7 +57,7 @@ Examples:
     cat logs.ndjson | apex-log-parser --input-format ndjson
 
   NDJSON line shape:
-    {"logId":"07Lxx0000001234AAA","log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}
+    {"Id":"07Lxx0000001234AAA","Request":"API","Operation":"ApexTestHandler","LastModifiedDate":"2026-04-17T09:00:00.000+0000","Status":"Success","Log":"64.0 APEX_CODE,INFO\n09:00:00.0 (1)|EXECUTION_STARTED"}
 
   Parse recent Apex test logs from an org:
     sf debug retrieve -o MyOrg --query "SELECT Id FROM ApexLog WHERE Operation = 'ApexTestHandler' ORDER BY StartTime DESC LIMIT 5" | apex-log-parser
@@ -79,6 +82,10 @@ JSON output schema:
       source      Input source identifier for the parsed log
       user        Salesforce user captured in the log when available
       startTime   Clock time of the first parsed log event in HH:MM:SS.mmm format
+      request     NDJSON Request field when provided
+      operation   NDJSON Operation field when provided
+      lastModifiedDate NDJSON LastModifiedDate field when provided
+      status      NDJSON Status field when provided
       durationMs  Total tracked execution time in milliseconds
       sizeMb      Raw log size in megabytes
       logLevels[]
