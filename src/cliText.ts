@@ -88,12 +88,32 @@ JSON output schema:
       status      NDJSON Status field when provided
       durationMs  Total tracked execution time in milliseconds
       sizeMb      Raw log size in megabytes
-      logLevels  Object keyed by Salesforce debug category with the configured level as value
+      logLevels   Object keyed by Salesforce debug category with the configured level as value
     events[]
       Flat list of all parsed events. Common fields include:
-      id, parentId, type, name, method, lineNumber, query, object, rows,
-      rowsReturned, operation, timeStart, timeEnd, durationMs, exceptionType,
-      limits, request/response callout fields, and source
+      source        Input source identifier copied onto each flattened event
+      id            Parser-generated event identifier unique within a log
+      parentId      Parent event identifier; omitted for top-level events
+      type          Event category such as METHOD, SOQL, DML, CALLOUT, or LIMIT
+      name          Human-readable event label used in the tree view
+      method        Method-style event name when the source log provides it
+      lineNumber    Apex source line number associated with the event
+      query         Full SOQL query text for SOQL events
+      object        SObject or API name inferred or reported for the event
+      rows          Row count reported for SOQL or DML events
+      rowsReturned  Returned row count when explicitly captured by the parser
+      operation     DML operation name such as Insert, Update, or Delete
+      timeStart     Raw event start timestamp in nanoseconds
+      timeEnd       Raw event end timestamp in nanoseconds for scoped events
+      durationMs    Computed event duration in milliseconds rounded to 3 decimals
+      exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
+      limits        Governor limit usage object for LIMIT events
+      request       Outbound request text for CALLOUT events
+      response      Inbound response text for CALLOUT events
+      namedCredentialRequest Named Credential request text for CALLOUT events
+      namedCredentialResponse Named Credential response text for CALLOUT events
+      namedCredentialResponseDetails Named Credential response details for CALLOUT events
+      responseDetails Additional response detail text for CALLOUT events
     tree
       Recursive execution tree using the same event fields plus children[]
 
