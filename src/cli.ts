@@ -7,6 +7,7 @@ import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { promises as fs, readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { parseArgs as parseNodeArgs } from 'node:util';
 import * as path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,34 +36,54 @@ const OPTIONAL_NDJSON_STRING_FIELDS = ['Request', 'Operation', 'LastModifiedDate
  * @returns The parsed arguments including files and tree flag.
  */
 function parseArgs(args: string[]): ParsedArgs {
-    if (args.indexOf('-h') !== -1 || args.indexOf('--help') !== -1) showUsage();
-    if (args.indexOf('-v') !== -1 || args.indexOf('--version') !== -1) showVersion();
-    if (args.indexOf('--schema') !== -1) showSchema();
+    try {
+        const { values } = parseNodeArgs({
+            args,
+            allowPositionals: true,
+            strict: true,
+            options: {
+                help: { type: 'boolean', short: 'h' },
+                version: { type: 'boolean', short: 'v' },
+                schema: { type: 'boolean' },
+                tree: { type: 'boolean' },
+                'input-format': { type: 'string' },
+                f: { type: 'string', multiple: true, short: 'f' },
+            },
+        });
 
-    const tree = args.indexOf('--tree') !== -1;
-    const fIndex = args.indexOf('-f');
-    const inputFormatIndex = args.indexOf('--input-format');
-    let inputFormat: 'raw' | 'ndjson' = 'raw';
+        if (values.help) showUsage();
+        if (values.version) showVersion();
+        if (values.schema) showSchema();
 
-    if (inputFormatIndex !== -1) {
-        const value = args[inputFormatIndex + 1];
-        if (value !== 'raw' && value !== 'ndjson') {
+        const inputFormatValue = values['input-format'];
+        if (inputFormatValue !== undefined && inputFormatValue !== 'raw' && inputFormatValue !== 'ndjson') {
             console.error('Invalid value for --input-format. Expected "raw" or "ndjson".');
             process.exit(1);
         }
-        inputFormat = value;
-    }
 
-    const files: string[] = [];
-    if (fIndex !== -1) {
-        for (let i = fIndex + 1; i < args.length; i++) {
+        const files: string[] = [];
+        for (let i = 0; i < args.length; i++) {
             const arg = args[i];
-            if (arg.startsWith('-')) break;
-            files.push(arg);
-        }
-    }
+            if (arg !== '-f') continue;
 
-    return { files, tree, inputFormat };
+            for (let j = i + 1; j < args.length; j++) {
+                const fileArg = args[j];
+                if (fileArg.startsWith('-')) break;
+                files.push(fileArg);
+                i = j;
+            }
+        }
+
+        return {
+            files,
+            tree: values.tree ?? false,
+            inputFormat: inputFormatValue ?? 'raw',
+        };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(message);
+        process.exit(1);
+    }
 }
 
 function showVersion(): never {
