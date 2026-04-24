@@ -54,6 +54,8 @@ const OPTIONAL_NDJSON_STRING_FIELDS = ['Request', 'Operation', 'LastModifiedDate
 const EVENT_TYPES = new Set<NodeType>([
     'CODE_UNIT',
     'METHOD',
+    'CONSTRUCTOR',
+    'SYSTEM_METHOD',
     'SOQL',
     'DML',
     'EXCEPTION_THROWN',

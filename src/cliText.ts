@@ -111,7 +111,7 @@ JSON output schema:
       source        Input source identifier copied onto each flattened event
       id            Parser-generated event identifier unique within a log
       parentId      Parent event identifier; omitted for top-level events
-      type          Event category such as METHOD, SOQL, DML, CALLOUT, or LIMIT
+      type          Event category such as METHOD, CONSTRUCTOR, SOQL, DML, CALLOUT, or LIMIT
       name          Human-readable event label used in the tree view
       method        Method-style event name when the source log provides it
       lineNumber    Apex source line number associated with the event
@@ -139,7 +139,7 @@ JSON output schema:
       instead of JSON when using --tree.
 
 Event types:
-  CODE_UNIT, METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
+  CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
   EXECUTION, FLOW, FLOW_ELEMENT, FLOW_START_INTERVIEW, FLOW_BULK_ELEMENT,
   MANAGED_PKG, CALLOUT, LIMIT
 

@@ -22,6 +22,8 @@ export type NodeType =
   | 'ROOT'
   | 'CODE_UNIT'
   | 'METHOD'
+  | 'CONSTRUCTOR'
+  | 'SYSTEM_METHOD'
   | 'SOQL'
   | 'DML'
   | 'EXCEPTION_THROWN' // non-fatal, may be caught

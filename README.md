@@ -185,7 +185,7 @@ This adds a compact `context` object to each event:
 }
 ```
 
-The stack contains meaningful ancestor nodes only, such as code units, methods, DML operations, flows, and managed package frames. It does not include the event itself.
+The stack contains meaningful ancestor nodes only, such as code units, methods, constructors, DML operations, flows, and managed package frames. It does not include the event itself.
 
 ### Filtering with `jq`
 
@@ -251,6 +251,8 @@ The `type` property in `events` corresponds to the kind of parsed log event. You
 
 *   `CODE_UNIT`: A unit of code execution, such as a trigger or a class method.
 *   `METHOD`: A method call.
+*   `CONSTRUCTOR`: A constructor call.
+*   `SYSTEM_METHOD`: A system method call.
 *   `SOQL`: A SOQL query.
 *   `DML`: A DML statement (e.g., insert, update, delete).
 *   `EXCEPTION_THROWN`: An exception that was thrown but may be handled; execution continues. Includes `name` and `exceptionType`.

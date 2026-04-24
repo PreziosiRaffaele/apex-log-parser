@@ -19,6 +19,8 @@ function createEmptySummaryState(): ParserSummaryState {
 const CONTEXT_NODE_TYPES = new Set<NodeType>([
     'CODE_UNIT',
     'METHOD',
+    'CONSTRUCTOR',
+    'SYSTEM_METHOD',
     'DML',
     'FLOW',
     'FLOW_ELEMENT',
@@ -81,6 +83,8 @@ export class ApexLogParser {
     private mapTypeByTypeExit: Map<string, string> = new Map([
         ['CODE_UNIT_FINISHED', 'CODE_UNIT'],
         ['METHOD_EXIT', 'METHOD'],
+        ['CONSTRUCTOR_EXIT', 'CONSTRUCTOR'],
+        ['SYSTEM_METHOD_EXIT', 'SYSTEM_METHOD'],
         ['SOQL_EXECUTE_END', 'SOQL'],
         ['DML_END', 'DML'],
         ['EXECUTION_FINISHED', 'EXECUTION'],
@@ -197,6 +201,22 @@ export class ApexLogParser {
                 this.handleMethodEntry(timestamp, eventPayload);
                 break;
             case 'METHOD_EXIT':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleNodeExit(timestamp, eventType);
+                break;
+            case 'CONSTRUCTOR_ENTRY':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleConstructorEntry(timestamp, eventPayload);
+                break;
+            case 'CONSTRUCTOR_EXIT':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleNodeExit(timestamp, eventType);
+                break;
+            case 'SYSTEM_METHOD_ENTRY':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleSystemMethodEntry(timestamp, eventPayload);
+                break;
+            case 'SYSTEM_METHOD_EXIT':
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
@@ -555,6 +575,36 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'METHOD',
+            name: getPipeFieldFromEnd(eventPayload, 0),
+            lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
+    }
+
+    private handleConstructorEntry(timestamp: number, eventPayload: string): void {
+        const signature = getPipeFieldFromEnd(eventPayload, 1);
+        const className = getPipeFieldFromEnd(eventPayload, 0);
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'CONSTRUCTOR',
+            name: signature ? `${className}.${signature}` : className,
+            lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
+            durationMs: undefined,
+            timeStart: timestamp,
+            timeEnd: undefined,
+        };
+        this.pushNode(node);
+    }
+
+    private handleSystemMethodEntry(timestamp: number, eventPayload: string): void {
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'SYSTEM_METHOD',
             name: getPipeFieldFromEnd(eventPayload, 0),
             lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
             durationMs: undefined,
