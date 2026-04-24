@@ -1,6 +1,6 @@
 import { removeTrailingNewlines, sanitizeString, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
-import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode } from './types.js';
+import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType } from './types.js';
 
 type ParserSummaryState = {
     source: string;
@@ -15,6 +15,17 @@ function createEmptySummaryState(): ParserSummaryState {
         logLevels: {},
     };
 }
+
+const CONTEXT_NODE_TYPES = new Set<NodeType>([
+    'CODE_UNIT',
+    'METHOD',
+    'DML',
+    'FLOW',
+    'FLOW_ELEMENT',
+    'FLOW_START_INTERVIEW',
+    'FLOW_BULK_ELEMENT',
+    'MANAGED_PKG',
+]);
 
 
 export class ApexLogParser {
@@ -42,7 +53,7 @@ export class ApexLogParser {
         this.reset();
     }
 
-    public parse(log: string, source: string = 'stdin'): ParsedLog {
+    public parse(log: string, source: string = 'stdin', options: ParseOptions = {}): ParsedLog {
         this.reset();
 
         this.summary.source = source;
@@ -60,10 +71,10 @@ export class ApexLogParser {
             this.parseLine(removeTrailingNewlines(logEvents[i]));
         }
 
-        return this.buildOutput();
+        return this.buildOutput(options);
     }
 
-    private buildOutput(): ParsedLog {
+    private buildOutput(options: ParseOptions): ParsedLog {
         let durationMs = this.rootNode?.children?.reduce((acc, node) => acc + (node.durationMs ?? 0), 0) ?? 0;
         // Round duration to 3 decimal places
         durationMs = Math.round((durationMs + Number.EPSILON) * 1000) / 1000;
@@ -80,7 +91,7 @@ export class ApexLogParser {
         const output: ParsedLog = {
             summary,
             tree: this.rootNode,
-            events: this.rootNode ? this.flattenEvents(this.rootNode) : [],
+            events: this.rootNode ? this.flattenEvents(this.rootNode, options) : [],
         };
 
         return output;
@@ -524,25 +535,56 @@ export class ApexLogParser {
     }
 
     /**
-     * Recursively flattens the event tree into a simple array without the `children` property.
-     * The root node is excluded from the flattened list because it does not represent
-     * a real event – it is only a container for the tree itself.
+     * Converts a recursive tree branch into flat event records.
+     *
+     * Inputs:
+     * - node: current tree node to flatten.
+     * - options: parse options controlling optional event context.
+     * - contextStack: compact ancestor frames that contain the current node.
+     *
+     * Output:
+     * - A depth-first list of EventNode objects for this node and all descendants.
+     *
+     * The synthetic ROOT node is never emitted as an event. When includeContext is
+     * enabled, each emitted event receives the current ancestor stack before the
+     * current node is added for its children, so context contains only ancestors
+     * that enclose the event and never the event itself or sibling nodes.
      */
-    private flattenEvents(node: TreeNode): EventNode[] {
+    private flattenEvents(node: TreeNode, options: ParseOptions, contextStack: EventContextFrame[] = []): EventNode[] {
         const { children, ...eventWithoutChildren } = node;
         const eventNode: EventNode = {
             ...eventWithoutChildren,
             source: this.summary.source,
         };
+        if (options.includeContext && node.type !== 'ROOT') {
+            eventNode.context = {
+                stack: contextStack.map(frame => ({ ...frame })),
+            };
+        }
         // Skip the synthetic ROOT node from the output array
         const events: EventNode[] = node.type === 'ROOT' ? [] : [eventNode];
+        const childContextStack = options.includeContext && CONTEXT_NODE_TYPES.has(node.type)
+            ? [...contextStack, this.createContextFrame(node)]
+            : contextStack;
 
         if (children?.length) {
             for (const child of children) {
-                events.push(...this.flattenEvents(child));
+                events.push(...this.flattenEvents(child, options, childContextStack));
             }
         }
 
         return events;
+    }
+
+    private createContextFrame(node: TreeNode): EventContextFrame {
+        return {
+            id: node.id,
+            type: node.type,
+            name: node.name,
+            lineNumber: node.lineNumber,
+            operation: node.operation,
+            object: node.object,
+            rows: node.rows,
+        };
     }
 }

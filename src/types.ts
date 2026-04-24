@@ -35,6 +35,10 @@ export type NodeType =
   | 'CALLOUT'
   | "LIMIT";
 
+export type ParseOptions = {
+    includeContext?: boolean;
+};
+
 export interface LimitDetail {
   current: number;
   max: number;
@@ -89,9 +93,24 @@ export interface ParsedLogSummary {
     logLevels: LogLevelsMap;
 }
 
+export type EventContextFrame = {
+    id: string;
+    type: NodeType;
+    name?: string;
+    lineNumber?: number;
+    operation?: string;
+    object?: string;
+    rows?: number;
+};
+
+export type EventContext = {
+    stack: EventContextFrame[];
+};
+
 // Event node without the recursive "children" property
 export type EventNode = Omit<TreeNode, 'children'> & {
     source: string;
+    context?: EventContext;
 };
 export interface ParsedLog {
     summary: ParsedLogSummary;

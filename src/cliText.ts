@@ -22,6 +22,7 @@ Notes:
   - JSON output is intended to be piped into jq
   - --tree prints a human-readable tree view instead of JSON
   - --include-tree includes the recursive tree in JSON output
+  - --include-context adds compact execution ancestry to events
   - Event filters preserve summary and filter only events, not tree
   - Logs with no matching events are omitted when filters are active
 
@@ -33,6 +34,8 @@ Options:
       Print a human-readable execution tree instead of JSON.
   --include-tree
       Include the recursive execution tree in JSON output.
+  --include-context
+      Include compact ancestor context on each JSON event.
   --input-format <raw|ndjson>
       Select stdin parsing mode. raw splits concatenated Apex logs.
       ndjson expects one JSON object per line with string fields Id and Log.
@@ -82,6 +85,9 @@ Examples:
   Show only slow DML events:
     ... | apex-log-parser --type DML --min-duration-ms 1000
 
+  Show SOQL events with their execution context:
+    ... | apex-log-parser --type SOQL --include-context
+
   Show the slowest events across multiple logs:
     ... | apex-log-parser | jq -s '[.[].events[] | select((.durationMs // 0) > 0)] | sort_by(.durationMs) | reverse[:20]'
 `.trim();
@@ -125,6 +131,8 @@ JSON output schema:
       namedCredentialResponse Named Credential response text for CALLOUT events
       namedCredentialResponseDetails Named Credential response details for CALLOUT events
       responseDetails Additional response detail text for CALLOUT events
+      context       Optional execution ancestry when using --include-context
+      context.stack Compact ancestor frames with id, type, name, lineNumber, and DML details when available
     tree
       Recursive execution tree using the same event fields plus children[].
       Included only when using --include-tree. Rendered as human-readable text
@@ -138,6 +146,7 @@ Event types:
 Notes:
   - events is the best starting point for jq filtering, grouping, and aggregation
   - default JSON output omits tree; use --include-tree to include it
+  - default JSON output omits event context; use --include-context to include it
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - logs with no matching events are omitted when filters are active

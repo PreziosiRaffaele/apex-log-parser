@@ -17,6 +17,7 @@ type ParsedArgs = {
     files: string[];
     tree: boolean;
     includeTree: boolean;
+    includeContext: boolean;
     inputFormat: 'raw' | 'ndjson';
     filters: EventFilters;
 }
@@ -30,6 +31,7 @@ type EventFilters = {
 type CliOutputOptions = {
     tree: boolean;
     includeTree: boolean;
+    includeContext: boolean;
     filters: EventFilters;
 };
 
@@ -83,6 +85,7 @@ function parseArgs(args: string[]): ParsedArgs {
                 schema: { type: 'boolean' },
                 tree: { type: 'boolean' },
                 'include-tree': { type: 'boolean' },
+                'include-context': { type: 'boolean' },
                 'input-format': { type: 'string' },
                 type: { type: 'string', multiple: true },
                 'exclude-type': { type: 'string', multiple: true },
@@ -104,10 +107,15 @@ function parseArgs(args: string[]): ParsedArgs {
         const filters = parseEventFilters(values.type, values['exclude-type'], values['min-duration-ms']);
         const tree = values.tree ?? false;
         const includeTree = values['include-tree'] ?? false;
+        const includeContext = values['include-context'] ?? false;
         const hasFilters = hasActiveFilters(filters);
 
         if (tree && includeTree) {
             console.error('Cannot combine --tree with --include-tree.');
+            process.exit(1);
+        }
+        if (tree && includeContext) {
+            console.error('Cannot combine --tree with --include-context.');
             process.exit(1);
         }
         if (hasFilters && tree) {
@@ -132,6 +140,7 @@ function parseArgs(args: string[]): ParsedArgs {
             files,
             tree,
             includeTree,
+            includeContext,
             inputFormat: inputFormatValue ?? 'raw',
             filters,
         };
@@ -210,10 +219,10 @@ function showSchema(): never {
     process.exit(0);
 }
 
-async function parseFile(parser: ApexLogParser, filePath: string): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {
+async function parseFile(parser: ApexLogParser, filePath: string, options: CliOutputOptions): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {
     try {
         const logContent = await fs.readFile(filePath, 'utf-8');
-        const apexLog = parser.parse(logContent, path.basename(filePath));
+        const apexLog = parser.parse(logContent, path.basename(filePath), { includeContext: options.includeContext });
         return { success: true, data: apexLog };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -306,7 +315,7 @@ async function processFiles(parser: ApexLogParser, files: string[], options: Cli
 
     let successfulParses = 0;
     for (const filePath of existingFiles) {
-        const result = await parseFile(parser, filePath);
+        const result = await parseFile(parser, filePath, options);
         if (result.success) {
             outputResult(result.data, options);
             successfulParses++;
@@ -337,7 +346,7 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
     });
 
     const splitter = new ApexLogSplitter((logData: LogData) => {
-        const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number);
+        const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number, { includeContext: options.includeContext });
         outputResult(apexLog, options);
     });
 
@@ -418,7 +427,7 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
             }
 
             const { Id, Log, Request, Operation, LastModifiedDate, Status } = parseNdjsonLine(line, lineNumber);
-            const apexLog = parser.parse(Log, Id);
+            const apexLog = parser.parse(Log, Id, { includeContext: options.includeContext });
             apexLog.summary.request = Request;
             apexLog.summary.operation = Operation;
             apexLog.summary.lastModifiedDate = LastModifiedDate;
@@ -437,10 +446,11 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree, includeTree, inputFormat, filters } = parseArgs(args);
+    const { files, tree, includeTree, includeContext, inputFormat, filters } = parseArgs(args);
     const outputOptions: CliOutputOptions = {
         tree,
         includeTree,
+        includeContext,
         filters,
     };
 

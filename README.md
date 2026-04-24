@@ -8,7 +8,7 @@ It can process a single log file or multiple log files at once.
 
 The tool can also read from `stdin`, allowing it to be used in combination with other tools like `sf apex get log`. 
 
-By default, JSON output contains `summary` and `events`. Use `--include-tree` when you also need the recursive execution tree in JSON.
+By default, JSON output contains `summary` and `events`. Use `--include-tree` when you also need the recursive execution tree in JSON, or `--include-context` when events should include their execution ancestry.
 
 ## Installation
 
@@ -152,6 +152,40 @@ apex-log-parser -f mylog.log --type SOQL --type DML
 ```
 
 Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
+
+### Event Context
+
+Use `--include-context` when filtered events need to show where they happened in the execution stack.
+
+```bash
+apex-log-parser -f mylog.log --type SOQL --include-context
+```
+
+This adds a compact `context` object to each event:
+
+```json
+{
+  "type": "SOQL",
+  "object": "account",
+  "context": {
+    "stack": [
+      {
+        "id": "00003",
+        "type": "CODE_UNIT",
+        "name": "AccountTrigger on Account trigger event BeforeUpdate"
+      },
+      {
+        "id": "00017",
+        "type": "METHOD",
+        "name": "MyClass.run",
+        "lineNumber": 52
+      }
+    ]
+  }
+}
+```
+
+The stack contains meaningful ancestor nodes only, such as code units, methods, DML operations, flows, and managed package frames. It does not include the event itself.
 
 ### Filtering with `jq`
 
