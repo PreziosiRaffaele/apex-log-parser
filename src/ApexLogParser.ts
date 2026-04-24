@@ -27,6 +27,48 @@ const CONTEXT_NODE_TYPES = new Set<NodeType>([
     'MANAGED_PKG',
 ]);
 
+function getPipeField(payload: string, fieldIndex: number): string {
+    let fieldStart = 0;
+
+    for (let i = 0; i < fieldIndex; i++) {
+        const pipeIndex = payload.indexOf('|', fieldStart);
+        if (pipeIndex === -1) return '';
+        fieldStart = pipeIndex + 1;
+    }
+
+    const fieldEnd = payload.indexOf('|', fieldStart);
+    return fieldEnd === -1
+        ? payload.slice(fieldStart)
+        : payload.slice(fieldStart, fieldEnd);
+}
+
+function getPipeFieldFromEnd(payload: string, offsetFromEnd: number): string {
+    let fieldEnd = payload.length;
+
+    for (let i = 0; i <= offsetFromEnd; i++) {
+        const fieldStart = payload.lastIndexOf('|', fieldEnd - 1);
+
+        if (i === offsetFromEnd) {
+            return payload.slice(fieldStart + 1, fieldEnd);
+        }
+
+        if (fieldStart === -1) return '';
+        fieldEnd = fieldStart;
+    }
+
+    return '';
+}
+
+function getColonValue(field: string): string | undefined {
+    const colonIndex = field.indexOf(':');
+    if (colonIndex === -1) return undefined;
+
+    const nextColonIndex = field.indexOf(':', colonIndex + 1);
+    return nextColonIndex === -1
+        ? field.slice(colonIndex + 1)
+        : field.slice(colonIndex + 1, nextColonIndex);
+}
+
 
 export class ApexLogParser {
     private summary: ParserSummaryState = createEmptySummaryState();
@@ -112,106 +154,135 @@ export class ApexLogParser {
     }
 
     private parseLine(line: string): void {
-        const parts = line.split('|');
-        if (parts.length < 2) return;
+        const firstPipeIndex = line.indexOf('|');
+        if (firstPipeIndex === -1) return;
 
-        const executionTimePart = parts[0];
+        const secondPipeIndex = line.indexOf('|', firstPipeIndex + 1);
+        const executionTimePart = line.slice(0, firstPipeIndex);
         if (!this.summary.startTime) {
             this.summary.startTime = extractClockTime(executionTimePart);
         }
-        const timestamp = extractTimestamp(executionTimePart);
-        const eventType = parts[1];
-        const eventData: string[] = parts.slice(2);
+
+        const eventType = secondPipeIndex === -1
+            ? line.slice(firstPipeIndex + 1)
+            : line.slice(firstPipeIndex + 1, secondPipeIndex);
+        const eventPayload = secondPipeIndex === -1 ? '' : line.slice(secondPipeIndex + 1);
+        let timestamp: number | undefined;
 
         // Close the current node if it is a managed package and the event is no longer related to a managed package. 
         // This is necessary because the managed package doesn't have an explicit exit event.
-        if (this.currentNode?.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || (eventType === 'ENTERING_MANAGED_PKG' && this.currentNode?.name !== eventData[eventData.length - 1]))) {
+        if (this.currentNode?.type === 'MANAGED_PKG' && (eventType !== 'ENTERING_MANAGED_PKG' || this.currentNode?.name !== getPipeFieldFromEnd(eventPayload, 0))) {
+            timestamp = extractTimestamp(executionTimePart);
             this.closeNode(timestamp);
         }
 
         switch (eventType) {
             case 'USER_INFO':
-                this.handleUserInfo(eventData);
+                this.handleUserInfo(eventPayload);
                 break;
             case 'CODE_UNIT_STARTED':
-                this.handleCodeUnitStarted(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleCodeUnitStarted(timestamp, eventPayload);
                 break;
             case 'LIMIT_USAGE_FOR_NS':
-                this.handleLimitUsageForNs(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleLimitUsageForNs(timestamp, eventPayload);
                 break;
             case 'CODE_UNIT_FINISHED':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'METHOD_ENTRY':
-                this.handleMethodEntry(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleMethodEntry(timestamp, eventPayload);
                 break;
             case 'METHOD_EXIT':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'SOQL_EXECUTE_BEGIN':
-                this.handleSoqlExecuteBegin(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleSoqlExecuteBegin(timestamp, eventPayload);
                 break;
             case 'SOQL_EXECUTE_END':
-                this.handleSOQLExit(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleSOQLExit(timestamp, eventPayload);
                 break;
             case 'DML_BEGIN':
-                this.handleDmlBegin(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleDmlBegin(timestamp, eventPayload);
                 break;
             case 'DML_END':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'EXECUTION_STARTED':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleExecutionStarted(timestamp);
                 break;
             case 'EXECUTION_FINISHED':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FLOW_START_INTERVIEW_BEGIN':
-                this.handleFlowStartInterviewBegin(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleFlowStartInterviewBegin(timestamp, eventPayload);
                 break;
             case 'FLOW_START_INTERVIEW_END':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FLOW_ELEMENT_BEGIN':
-                this.handleFlowElementBegin(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleFlowElementBegin(timestamp, eventPayload);
                 break;
             case 'FLOW_ELEMENT_END':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FATAL_ERROR':
-                this.handleFatalError(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleFatalError(timestamp, eventPayload);
                 break;
             case 'EXCEPTION_THROWN':
-                this.handleExceptionThrown(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleExceptionThrown(timestamp, eventPayload);
                 break;
             case 'ENTERING_MANAGED_PKG':
-                this.handleEnteringManagedPkg(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleEnteringManagedPkg(timestamp, eventPayload);
                 break;
             case 'CALLOUT_REQUEST':
-                this.handleCalloutRequest(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleCalloutRequest(timestamp, eventPayload);
                 break;
             case 'CALLOUT_RESPONSE':
-                this.handleCalloutResponse(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleCalloutResponse(timestamp, eventPayload);
                 break;
             case 'NAMED_CREDENTIAL_REQUEST':
-                this.handleNamedCredentialRequest(eventData);
+                this.handleNamedCredentialRequest(eventPayload);
                 break;
             case 'NAMED_CREDENTIAL_RESPONSE':
-                this.handleNamedCredentialResponse(eventData);
+                this.handleNamedCredentialResponse(eventPayload);
                 break;
             case 'NAMED_CREDENTIAL_RESPONSE_DETAIL':
-                this.handleNamedCredentialResponseDetail(eventData);
+                this.handleNamedCredentialResponseDetail(eventPayload);
                 break;
             case 'FLOW_BULK_ELEMENT_BEGIN':
-                this.handleFlowBulkElementStart(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleFlowBulkElementStart(timestamp, eventPayload);
                 break;
             case 'FLOW_BULK_ELEMENT_END':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FLOW_START_INTERVIEWS_BEGIN':
-                this.handleFlowStartInterviewsBegin(timestamp, eventData);
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleFlowStartInterviewsBegin(timestamp, eventPayload);
                 break;
             case 'FLOW_START_INTERVIEWS_END':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleNodeExit(timestamp, eventType);
                 break;
             default:
@@ -219,26 +290,26 @@ export class ApexLogParser {
         }
     }
 
-    private handleLimitUsageForNs(timestamp: number, eventData: string[]): void {
-        const namespace = eventData[0].replace(/[()]/g, '');
+    private handleLimitUsageForNs(timestamp: number, eventPayload: string): void {
+        const namespace = getPipeField(eventPayload, 0).replace(/[()]/g, '');
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'LIMIT',
             name: namespace,
-            limits: parseGovernorLimits(eventData[1]),
+            limits: parseGovernorLimits(getPipeField(eventPayload, 1)),
             timeStart: timestamp,
         };
         this.pushNode(node);
         this.closeNode();
     }
 
-    private handleFlowElementBegin(timestamp: number, eventData: string[]): void {
+    private handleFlowElementBegin(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'FLOW_ELEMENT',
-            name: eventData[eventData.length - 2] + ' ' + eventData[eventData.length - 1],
+            name: getPipeFieldFromEnd(eventPayload, 1) + ' ' + getPipeFieldFromEnd(eventPayload, 0),
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -246,12 +317,12 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleFlowStartInterviewsBegin(timestamp: number, eventData: string[]): void {
+    private handleFlowStartInterviewsBegin(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'FLOW',
-            name: eventData[eventData.length - 1],
+            name: getPipeFieldFromEnd(eventPayload, 0),
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -259,12 +330,12 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleFlowBulkElementStart(timestamp: number, eventData: string[]): void {
+    private handleFlowBulkElementStart(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'FLOW_BULK_ELEMENT',
-            name: eventData[eventData.length - 1],
+            name: getPipeFieldFromEnd(eventPayload, 0),
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -272,30 +343,30 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleNamedCredentialResponseDetail(eventData: string[]): void {
+    private handleNamedCredentialResponseDetail(eventPayload: string): void {
         if (this.currentNode.type === 'CALLOUT') {
-            this.currentNode.namedCredentialResponseDetails = eventData[eventData.length - 1];
+            this.currentNode.namedCredentialResponseDetails = getPipeFieldFromEnd(eventPayload, 0);
         }
     }
 
-    private handleNamedCredentialRequest(eventData: string[]): void {
+    private handleNamedCredentialRequest(eventPayload: string): void {
         if (this.currentNode.type === 'CALLOUT') {
-            this.currentNode.namedCredentialRequest = eventData[eventData.length - 1];
+            this.currentNode.namedCredentialRequest = getPipeFieldFromEnd(eventPayload, 0);
         }
     }
 
-    private handleNamedCredentialResponse(eventData: string[]): void {
+    private handleNamedCredentialResponse(eventPayload: string): void {
         if (this.currentNode.type === 'CALLOUT') {
-            this.currentNode.namedCredentialResponse = eventData[eventData.length - 1];
+            this.currentNode.namedCredentialResponse = getPipeFieldFromEnd(eventPayload, 0);
         }
     }
 
-    private handleCalloutRequest(timestamp: number, eventData: string[]): void {
+    private handleCalloutRequest(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'CALLOUT',
-            request: eventData[eventData.length - 1],
+            request: getPipeFieldFromEnd(eventPayload, 0),
             response: undefined,
             durationMs: undefined,
             timeStart: timestamp,
@@ -304,20 +375,20 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleCalloutResponse(timestamp: number, eventData: string[]): void {
+    private handleCalloutResponse(timestamp: number, eventPayload: string): void {
         if (this.currentNode?.type === 'CALLOUT') {
-            this.currentNode.response = eventData[eventData.length - 1];
+            this.currentNode.response = getPipeFieldFromEnd(eventPayload, 0);
         }
         this.handleNodeExit(timestamp, 'CALLOUT_RESPONSE');
     }
 
-    private handleEnteringManagedPkg(timestamp: number, eventData: string[]): void {
+    private handleEnteringManagedPkg(timestamp: number, eventPayload: string): void {
         if (this.currentNode.type === 'MANAGED_PKG') return;
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'MANAGED_PKG',
-            name: eventData[eventData.length - 1],
+            name: getPipeFieldFromEnd(eventPayload, 0),
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -325,9 +396,9 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleFatalError(timestamp: number, eventData: string[]): void {
+    private handleFatalError(timestamp: number, eventPayload: string): void {
         // Create an EXCEPTION node so that the fatal error is captured in the tree
-        const exceptionMessage = sanitizeString(eventData[eventData.length - 1]);
+        const exceptionMessage = sanitizeString(getPipeFieldFromEnd(eventPayload, 0));
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
@@ -353,9 +424,9 @@ export class ApexLogParser {
         }
     }
 
-    private handleExceptionThrown(timestamp: number, eventData: string[]): void {
+    private handleExceptionThrown(timestamp: number, eventPayload: string): void {
         // Create an EXCEPTION node for thrown (but potentially handled) exceptions
-        const exceptionMessage = sanitizeString(eventData[eventData.length - 1]);
+        const exceptionMessage = sanitizeString(getPipeFieldFromEnd(eventPayload, 0));
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
@@ -370,8 +441,8 @@ export class ApexLogParser {
         this.closeNode(timestamp);
     }
 
-    private handleFlowStartInterviewBegin(timestamp: number, eventData: string[]): void {
-        const flowName = eventData[eventData.length - 1];
+    private handleFlowStartInterviewBegin(timestamp: number, eventPayload: string): void {
+        const flowName = getPipeFieldFromEnd(eventPayload, 0);
         if (this.currentNode?.type === 'FLOW') {
             this.currentNode.name = flowName;
         }
@@ -415,16 +486,16 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleDmlBegin(timestamp: number, eventData: string[]): void {
-        const operation = eventData[eventData.length - 3].split(':')[1];
-        const object = eventData[eventData.length - 2].split(':')[1];
-        const rows = extractRows(eventData[eventData.length - 1]);
+    private handleDmlBegin(timestamp: number, eventPayload: string): void {
+        const operation = getColonValue(getPipeFieldFromEnd(eventPayload, 2));
+        const object = getColonValue(getPipeFieldFromEnd(eventPayload, 1));
+        const rows = extractRows(getPipeFieldFromEnd(eventPayload, 0));
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'DML',
             name: `${operation} on ${object} (${rows} rows)`,
-            lineNumber: extractLineNumber(eventData[0]),
+            lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
             operation,
             object,
             rows,
@@ -435,15 +506,15 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleSOQLExit(timestamp: number, eventData: string[]): void {
+    private handleSOQLExit(timestamp: number, eventPayload: string): void {
         if (this.currentNode && this.currentNode.type === 'SOQL') {
-            this.currentNode.rows = extractRows(eventData[eventData.length - 1]);
+            this.currentNode.rows = extractRows(getPipeFieldFromEnd(eventPayload, 0));
         }
         this.handleNodeExit(timestamp, 'SOQL_EXECUTE_END');
     }
 
-    private handleSoqlExecuteBegin(timestamp: number, eventData: string[]): void {
-        const query = eventData[eventData.length - 1];
+    private handleSoqlExecuteBegin(timestamp: number, eventPayload: string): void {
+        const query = getPipeFieldFromEnd(eventPayload, 0);
         const object = extractObject(query);
         const node: TreeNode = {
             id: this.idGenerator.next(),
@@ -460,17 +531,17 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleUserInfo(eventData: string[]): void {
-        this.summary.user = eventData[eventData.length - 3];
+    private handleUserInfo(eventPayload: string): void {
+        this.summary.user = getPipeFieldFromEnd(eventPayload, 2);
     }
 
 
-    private handleCodeUnitStarted(timestamp: number, eventData: string[]): void {
+    private handleCodeUnitStarted(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'CODE_UNIT',
-            name: eventData[eventData.length - 1],
+            name: getPipeFieldFromEnd(eventPayload, 0),
             durationMs: undefined,
             timeStart: timestamp,
             // Predefine timeEnd and duration so they appear before children in JSON output
@@ -479,13 +550,13 @@ export class ApexLogParser {
         this.pushNode(node);
     }
 
-    private handleMethodEntry(timestamp: number, eventData: string[]): void {
+    private handleMethodEntry(timestamp: number, eventPayload: string): void {
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'METHOD',
-            name: eventData[eventData.length - 1],
-            lineNumber: extractLineNumber(eventData[0]),
+            name: getPipeFieldFromEnd(eventPayload, 0),
+            lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,
@@ -534,42 +605,41 @@ export class ApexLogParser {
         this.currentNode = node;
     }
 
-    /**
-     * Converts a recursive tree branch into flat event records.
-     *
-     * Inputs:
-     * - node: current tree node to flatten.
-     * - options: parse options controlling optional event context.
-     * - contextStack: compact ancestor frames that contain the current node.
-     *
-     * Output:
-     * - A depth-first list of EventNode objects for this node and all descendants.
-     *
-     * The synthetic ROOT node is never emitted as an event. When includeContext is
-     * enabled, each emitted event receives the current ancestor stack before the
-     * current node is added for its children, so context contains only ancestors
-     * that enclose the event and never the event itself or sibling nodes.
-     */
-    private flattenEvents(node: TreeNode, options: ParseOptions, contextStack: EventContextFrame[] = []): EventNode[] {
-        const { children, ...eventWithoutChildren } = node;
-        const eventNode: EventNode = {
-            ...eventWithoutChildren,
-            source: this.summary.source,
-        };
-        if (options.includeContext && node.type !== 'ROOT') {
-            eventNode.context = {
-                stack: contextStack.map(frame => ({ ...frame })),
-            };
-        }
-        // Skip the synthetic ROOT node from the output array
-        const events: EventNode[] = node.type === 'ROOT' ? [] : [eventNode];
-        const childContextStack = options.includeContext && CONTEXT_NODE_TYPES.has(node.type)
-            ? [...contextStack, this.createContextFrame(node)]
-            : contextStack;
+    private flattenEvents(rootNode: TreeNode, options: ParseOptions): EventNode[] {
+        const events: EventNode[] = [];
+        const stack: Array<{ node: TreeNode; contextStack: EventContextFrame[] }> = [
+            { node: rootNode, contextStack: [] },
+        ];
 
-        if (children?.length) {
-            for (const child of children) {
-                events.push(...this.flattenEvents(child, options, childContextStack));
+        while (stack.length > 0) {
+            const { node, contextStack } = stack.pop()!;
+            const { children, ...eventWithoutChildren } = node;
+
+            if (node.type !== 'ROOT') {
+                const eventNode: EventNode = {
+                    ...eventWithoutChildren,
+                    source: this.summary.source,
+                };
+
+                if (options.includeContext) {
+                    eventNode.context = {
+                        stack: contextStack.map(frame => ({ ...frame })),
+                    };
+                }
+
+                events.push(eventNode);
+            }
+
+            if (!children?.length) {
+                continue;
+            }
+
+            const childContextStack = options.includeContext && CONTEXT_NODE_TYPES.has(node.type)
+                ? [...contextStack, this.createContextFrame(node)]
+                : contextStack;
+
+            for (let i = children.length - 1; i >= 0; i--) {
+                stack.push({ node: children[i], contextStack: childContextStack });
             }
         }
 
