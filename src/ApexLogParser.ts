@@ -10,10 +10,10 @@ type ParserSummaryState = {
 };
 
 function createEmptySummaryState(): ParserSummaryState {
-        return {
-            source: '',
-            logLevels: {},
-        };
+    return {
+        source: '',
+        logLevels: {},
+    };
 }
 
 
@@ -414,9 +414,9 @@ export class ApexLogParser {
             type: 'DML',
             name: `${operation} on ${object} (${rows} rows)`,
             lineNumber: extractLineNumber(eventData[0]),
-            operation, 
-            object, 
-            rows, 
+            operation,
+            object,
+            rows,
             durationMs: undefined,
             timeStart: timestamp,
             timeEnd: undefined,

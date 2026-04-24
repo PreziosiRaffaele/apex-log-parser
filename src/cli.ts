@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import readline from 'readline';
-import { ApexLogParser, ParsedLog } from './index.js';
+import { ApexLogParser, ParsedLog, EventNode, NodeType } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
 import { TreeRenderer } from './TreeRenderer.js';
@@ -16,8 +16,28 @@ const __dirname = path.dirname(__filename);
 type ParsedArgs = {
     files: string[];
     tree: boolean;
+    includeTree: boolean;
     inputFormat: 'raw' | 'ndjson';
+    filters: EventFilters;
 }
+
+type EventFilters = {
+    includeTypes: Set<NodeType>;
+    excludeTypes: Set<NodeType>;
+    minDurationMs?: number;
+};
+
+type CliOutputOptions = {
+    tree: boolean;
+    includeTree: boolean;
+    filters: EventFilters;
+};
+
+type CliJsonOutput = {
+    summary: ParsedLog['summary'];
+    tree?: ParsedLog['tree'];
+    events: EventNode[];
+};
 
 type NdjsonInput = {
     Id: string;
@@ -29,6 +49,22 @@ type NdjsonInput = {
 };
 
 const OPTIONAL_NDJSON_STRING_FIELDS = ['Request', 'Operation', 'LastModifiedDate', 'Status'] as const;
+const EVENT_TYPES = new Set<NodeType>([
+    'CODE_UNIT',
+    'METHOD',
+    'SOQL',
+    'DML',
+    'EXCEPTION_THROWN',
+    'FATAL_ERROR',
+    'EXECUTION',
+    'FLOW',
+    'FLOW_ELEMENT',
+    'FLOW_START_INTERVIEW',
+    'FLOW_BULK_ELEMENT',
+    'MANAGED_PKG',
+    'CALLOUT',
+    'LIMIT',
+]);
 
 /**
  * Parses the command line arguments and returns the parsed arguments.
@@ -46,7 +82,11 @@ function parseArgs(args: string[]): ParsedArgs {
                 version: { type: 'boolean', short: 'v' },
                 schema: { type: 'boolean' },
                 tree: { type: 'boolean' },
+                'include-tree': { type: 'boolean' },
                 'input-format': { type: 'string' },
+                type: { type: 'string', multiple: true },
+                'exclude-type': { type: 'string', multiple: true },
+                'min-duration-ms': { type: 'string' },
                 f: { type: 'string', multiple: true, short: 'f' },
             },
         });
@@ -58,6 +98,20 @@ function parseArgs(args: string[]): ParsedArgs {
         const inputFormatValue = values['input-format'];
         if (inputFormatValue !== undefined && inputFormatValue !== 'raw' && inputFormatValue !== 'ndjson') {
             console.error('Invalid value for --input-format. Expected "raw" or "ndjson".');
+            process.exit(1);
+        }
+
+        const filters = parseEventFilters(values.type, values['exclude-type'], values['min-duration-ms']);
+        const tree = values.tree ?? false;
+        const includeTree = values['include-tree'] ?? false;
+        const hasFilters = hasActiveFilters(filters);
+
+        if (tree && includeTree) {
+            console.error('Cannot combine --tree with --include-tree.');
+            process.exit(1);
+        }
+        if (hasFilters && tree) {
+            console.error('Cannot combine event filters with --tree.');
             process.exit(1);
         }
 
@@ -76,14 +130,62 @@ function parseArgs(args: string[]): ParsedArgs {
 
         return {
             files,
-            tree: values.tree ?? false,
+            tree,
+            includeTree,
             inputFormat: inputFormatValue ?? 'raw',
+            filters,
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(message);
         process.exit(1);
     }
+}
+
+function parseEventFilters(
+    includeTypeValues: string[] | undefined,
+    excludeTypeValues: string[] | undefined,
+    minDurationMsValue: string | undefined,
+): EventFilters {
+    return {
+        includeTypes: parseEventTypes(includeTypeValues, '--type'),
+        excludeTypes: parseEventTypes(excludeTypeValues, '--exclude-type'),
+        minDurationMs: parseMinDurationMs(minDurationMsValue),
+    };
+}
+
+function parseEventTypes(values: string[] | undefined, optionName: string): Set<NodeType> {
+    const eventTypes = new Set<NodeType>();
+
+    for (const value of values ?? []) {
+        for (const rawType of value.split(',')) {
+            const normalizedType = rawType.trim().toUpperCase();
+            if (normalizedType.length === 0) continue;
+            if (!EVENT_TYPES.has(normalizedType as NodeType)) {
+                console.error(`Invalid event type for ${optionName}: ${rawType.trim()}. Expected one of: ${Array.from(EVENT_TYPES).join(', ')}.`);
+                process.exit(1);
+            }
+            eventTypes.add(normalizedType as NodeType);
+        }
+    }
+
+    return eventTypes;
+}
+
+function parseMinDurationMs(value: string | undefined): number | undefined {
+    if (value === undefined) return undefined;
+
+    const minDurationMs = Number(value);
+    if (!Number.isFinite(minDurationMs) || minDurationMs < 0) {
+        console.error('Invalid value for --min-duration-ms. Expected a non-negative number.');
+        process.exit(1);
+    }
+
+    return minDurationMs;
+}
+
+function hasActiveFilters(filters: EventFilters): boolean {
+    return filters.includeTypes.size > 0 || filters.excludeTypes.size > 0 || filters.minDurationMs !== undefined;
 }
 
 function showVersion(): never {
@@ -140,15 +242,50 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
     return exists;
 }
 
-function outputResult(data: ParsedLog, useTree: boolean): void {
-    if (useTree) {
+function outputResult(data: ParsedLog, options: CliOutputOptions): void {
+    if (options.tree) {
         console.log(new TreeRenderer().renderTree(data));
     } else {
-        console.log(JSON.stringify(data, null, 2));
+        const output = createJsonOutput(data, options);
+        if (!output) return;
+        console.log(JSON.stringify(output, null, 2));
     }
 }
 
-async function processFiles(parser: ApexLogParser, files: string[], tree: boolean): Promise<void> {
+function createJsonOutput(data: ParsedLog, options: CliOutputOptions): CliJsonOutput | undefined {
+    const filteredEvents = filterEvents(data.events, options.filters);
+    if (hasActiveFilters(options.filters) && filteredEvents.length === 0) {
+        return undefined;
+    }
+
+    const output: CliJsonOutput = {
+        summary: data.summary,
+        events: filteredEvents,
+    };
+
+    if (options.includeTree) {
+        output.tree = data.tree;
+    }
+
+    return output;
+}
+
+function filterEvents(events: EventNode[], filters: EventFilters): EventNode[] {
+    return events.filter((event) => {
+        if (filters.includeTypes.size > 0 && !filters.includeTypes.has(event.type)) {
+            return false;
+        }
+        if (filters.excludeTypes.has(event.type)) {
+            return false;
+        }
+        if (filters.minDurationMs !== undefined && (event.durationMs ?? 0) < filters.minDurationMs) {
+            return false;
+        }
+        return true;
+    });
+}
+
+async function processFiles(parser: ApexLogParser, files: string[], options: CliOutputOptions): Promise<void> {
     const existingFiles: string[] = [];
     let hasErrors = false;
 
@@ -171,7 +308,7 @@ async function processFiles(parser: ApexLogParser, files: string[], tree: boolea
     for (const filePath of existingFiles) {
         const result = await parseFile(parser, filePath);
         if (result.success) {
-            outputResult(result.data, tree);
+            outputResult(result.data, options);
             successfulParses++;
         } else {
             hasErrors = true;
@@ -189,11 +326,11 @@ async function processFiles(parser: ApexLogParser, files: string[], tree: boolea
     }
 }
 
-async function processStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
-    await processRawStdin(parser, tree);
+async function processStdin(parser: ApexLogParser, options: CliOutputOptions): Promise<void> {
+    await processRawStdin(parser, options);
 }
 
-async function processRawStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
+async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions): Promise<void> {
     const rl = readline.createInterface({
         input: process.stdin,
         crlfDelay: Infinity,
@@ -201,7 +338,7 @@ async function processRawStdin(parser: ApexLogParser, tree: boolean): Promise<vo
 
     const splitter = new ApexLogSplitter((logData: LogData) => {
         const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number);
-        outputResult(apexLog, tree);
+        outputResult(apexLog, options);
     });
 
     rl.on('line', (line) => {
@@ -263,7 +400,7 @@ function parseNdjsonLine(line: string, lineNumber: number): NdjsonInput {
     return ndjsonInput as NdjsonInput;
 }
 
-async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise<void> {
+async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptions): Promise<void> {
     const rl = readline.createInterface({
         input: process.stdin,
         crlfDelay: Infinity,
@@ -286,7 +423,7 @@ async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise
             apexLog.summary.operation = Operation;
             apexLog.summary.lastModifiedDate = LastModifiedDate;
             apexLog.summary.status = Status;
-            outputResult(apexLog, tree);
+            outputResult(apexLog, options);
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -300,7 +437,12 @@ async function processNdjsonStdin(parser: ApexLogParser, tree: boolean): Promise
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree, inputFormat } = parseArgs(args);
+    const { files, tree, includeTree, inputFormat, filters } = parseArgs(args);
+    const outputOptions: CliOutputOptions = {
+        tree,
+        includeTree,
+        filters,
+    };
 
     const parser = new ApexLogParser();
 
@@ -309,12 +451,12 @@ async function main(): Promise<void> {
             process.exit(0);
         }
         if (inputFormat === 'ndjson') {
-            await processNdjsonStdin(parser, tree);
+            await processNdjsonStdin(parser, outputOptions);
         } else {
-            await processStdin(parser, tree);
+            await processStdin(parser, outputOptions);
         }
     } else {
-        await processFiles(parser, files, tree);
+        await processFiles(parser, files, outputOptions);
     }
 }
 

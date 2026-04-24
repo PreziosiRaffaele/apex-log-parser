@@ -8,6 +8,8 @@ It can process a single log file or multiple log files at once.
 
 The tool can also read from `stdin`, allowing it to be used in combination with other tools like `sf apex get log`. 
 
+By default, JSON output contains `summary` and `events`. Use `--include-tree` when you also need the recursive execution tree in JSON.
+
 ## Installation
 
 To install the package globally from npm, use:
@@ -120,9 +122,40 @@ In this mode, `summary.source` and each event `source` are set to `Id`, and any 
 }
 ```
 
+### Filtering Events
+
+Use CLI filters for common event filtering while keeping the transaction `summary` in the output.
+
+To get all `SOQL` events:
+
+```bash
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser --type SOQL
+```
+
+To get all `DML` events that took longer than 1 second:
+
+```bash
+sf apex get log --number 25 -o AliasOrg | apex-log-parser --type DML --min-duration-ms 1000
+```
+
+To exclude `LIMIT` events:
+
+```bash
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser --exclude-type LIMIT
+```
+
+You can pass multiple event types with commas or repeated flags:
+
+```bash
+apex-log-parser -f mylog.log --type SOQL,DML
+apex-log-parser -f mylog.log --type SOQL --type DML
+```
+
+Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
+
 ### Filtering with `jq`
 
-The JSON output can be piped to `jq` for powerful filtering and manipulation.
+The JSON output can still be piped to `jq` for advanced filtering, grouping, sorting, and reshaping.
 
 To get all `SOQL` events:
 
@@ -172,11 +205,16 @@ ROOT(00001) [150ms|100%] ██████████████████�
 │       └── SOQL(00006) SOQL on Contact [20ms|13%] █
 ```
 
+To include the recursive tree in JSON output, use `--include-tree`:
+
+```bash
+apex-log-parser -f mylog.log --include-tree
+```
+
 ## Event Types
 
-The `type` property in the JSON output corresponds to the kind of log node. You can use these values to filter the output with tools like `jq`. Here are the possible event types:
+The `type` property in `events` corresponds to the kind of parsed log event. You can use these values with `--type`, `--exclude-type`, or tools like `jq`:
 
-*   `ROOT`: The root of the execution tree.
 *   `CODE_UNIT`: A unit of code execution, such as a trigger or a class method.
 *   `METHOD`: A method call.
 *   `SOQL`: A SOQL query.
@@ -191,3 +229,5 @@ The `type` property in the JSON output corresponds to the kind of log node. You 
 *   `MANAGED_PKG`: A managed package execution.
 *   `CALLOUT`: A callout to an external service.
 *   `LIMIT`: A limit usage warning.
+
+When using `--include-tree`, the recursive tree also contains a synthetic `ROOT` node. `ROOT` is not present in `events` and is not accepted by event filter options.
