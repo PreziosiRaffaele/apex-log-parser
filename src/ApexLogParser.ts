@@ -657,19 +657,24 @@ export class ApexLogParser {
 
     private flattenEvents(rootNode: TreeNode, options: ParseOptions): EventNode[] {
         const events: EventNode[] = [];
-        const stack: Array<{ node: TreeNode; contextStack: EventContextFrame[] }> = [
+        const stack: Array<{ node: TreeNode; contextStack: EventContextFrame[]; executionId?: string }> = [
             { node: rootNode, contextStack: [] },
         ];
 
         while (stack.length > 0) {
-            const { node, contextStack } = stack.pop()!;
+            const { node, contextStack, executionId } = stack.pop()!;
             const { children, ...eventWithoutChildren } = node;
+            const nodeExecutionId = node.type === 'EXECUTION' ? node.id : executionId;
 
             if (node.type !== 'ROOT') {
                 const eventNode: EventNode = {
                     ...eventWithoutChildren,
                     source: this.summary.source,
                 };
+
+                if (nodeExecutionId) {
+                    eventNode.executionId = nodeExecutionId;
+                }
 
                 if (options.includeContext) {
                     eventNode.context = {
@@ -689,7 +694,7 @@ export class ApexLogParser {
                 : contextStack;
 
             for (let i = children.length - 1; i >= 0; i--) {
-                stack.push({ node: children[i], contextStack: childContextStack });
+                stack.push({ node: children[i], contextStack: childContextStack, executionId: nodeExecutionId });
             }
         }
 

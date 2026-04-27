@@ -112,6 +112,7 @@ export type EventContext = {
 // Event node without the recursive "children" property
 export type EventNode = Omit<TreeNode, 'children'> & {
     source: string;
+    executionId?: string;
     context?: EventContext;
 };
 export interface ParsedLog {
