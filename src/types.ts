@@ -18,6 +18,8 @@ export type LimitType =
   | 'QUEUEABLE_JOBS'
   | 'MOBILE_APEX_PUSH';
 
+export type LimitScope = 'cumulative' | 'testing';
+
 export type NodeType = 
   | 'ROOT'
   | 'CODE_UNIT'
@@ -41,12 +43,6 @@ export type ParseOptions = {
     includeContext?: boolean;
 };
 
-export interface LimitDetail {
-  current: number;
-  max: number;
-  usagePercentage: number;
-}
-
 export type LimitsObject = Record<LimitType, LimitDetail>;
 
 export interface TreeNode {
@@ -54,6 +50,8 @@ export interface TreeNode {
     parentId?: string;
     type: NodeType;
     limits?: LimitsObject;
+    namespace?: string;
+    limitScope?: LimitScope;
     request?: string;
     response?: string;
     namedCredentialRequest?: string;
@@ -120,4 +118,30 @@ export interface ParsedLog {
     tree?: TreeNode;
     // Flatten list of every event in the log without nested children
     events: EventNode[];
+}
+
+export interface NearLimitMatch {
+    scope: LimitScope;
+    namespace: string;
+    limit: LimitType;
+    current: number;
+    max: number;
+    usagePercentage: number;
+    threshold: number;
+    eventId: string;
+    timeStart: number;
+}
+
+export interface NearLimitTransaction {
+    executionId: string;
+    label: string;
+    timeStart?: number;
+    timeEnd?: number;
+    durationMs?: number;
+    matches: NearLimitMatch[];
+}
+
+export interface NearLimitReport {
+    summary: ParsedLogSummary;
+    nearLimitTransactions: NearLimitTransaction[];
 }

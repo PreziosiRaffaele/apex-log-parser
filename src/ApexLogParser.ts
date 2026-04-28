@@ -1,6 +1,6 @@
 import { removeTrailingNewlines, sanitizeString, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
-import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType } from './types.js';
+import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType, LimitScope } from './types.js';
 
 type ParserSummaryState = {
     source: string;
@@ -79,6 +79,9 @@ export class ApexLogParser {
     private rootNode?: TreeNode;
     private nodeStack: TreeNode[] = [];
     private idGenerator: IdGenerator = new IdGenerator();
+    private inLimitBlock: boolean = false;
+    private currentLimitScope: LimitScope = 'cumulative';
+    private pendingLimitScope?: LimitScope;
 
     private mapTypeByTypeExit: Map<string, string> = new Map([
         ['CODE_UNIT_FINISHED', 'CODE_UNIT'],
@@ -155,6 +158,9 @@ export class ApexLogParser {
         this.rootNode = rootNode;
         this.currentNode = rootNode;
         this.nodeStack = [rootNode];
+        this.inLimitBlock = false;
+        this.currentLimitScope = 'cumulative';
+        this.pendingLimitScope = undefined;
     }
 
     private parseLine(line: string): void {
@@ -188,9 +194,18 @@ export class ApexLogParser {
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleCodeUnitStarted(timestamp, eventPayload);
                 break;
+            case 'CUMULATIVE_LIMIT_USAGE':
+                this.handleCumulativeLimitUsage();
+                break;
             case 'LIMIT_USAGE_FOR_NS':
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleLimitUsageForNs(timestamp, eventPayload);
+                break;
+            case 'TESTING_LIMITS':
+                this.handleTestingLimits();
+                break;
+            case 'CUMULATIVE_LIMIT_USAGE_END':
+                this.handleCumulativeLimitUsageEnd();
                 break;
             case 'CODE_UNIT_FINISHED':
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
@@ -316,12 +331,33 @@ export class ApexLogParser {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'LIMIT',
-            name: namespace,
+            namespace,
+            limitScope: this.currentLimitScope,
             limits: parseGovernorLimits(getPipeField(eventPayload, 1)),
             timeStart: timestamp,
         };
         this.pushNode(node);
         this.closeNode();
+    }
+
+    private handleCumulativeLimitUsage(): void {
+        this.inLimitBlock = true;
+        this.currentLimitScope = this.pendingLimitScope ?? 'cumulative';
+        this.pendingLimitScope = undefined;
+    }
+
+    private handleTestingLimits(): void {
+        if (this.inLimitBlock) {
+            this.currentLimitScope = 'testing';
+            return;
+        }
+
+        this.pendingLimitScope = 'testing';
+    }
+
+    private handleCumulativeLimitUsageEnd(): void {
+        this.inLimitBlock = false;
+        this.currentLimitScope = 'cumulative';
     }
 
     private handleFlowElementBegin(timestamp: number, eventPayload: string): void {

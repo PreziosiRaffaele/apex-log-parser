@@ -23,6 +23,7 @@ Notes:
   - --tree prints a human-readable tree view instead of JSON
   - --include-tree includes the recursive tree in JSON output
   - --include-context adds compact execution ancestry to events
+  - --near-limit reports transactions with governor-limit pressure instead of events
   - Event filters preserve summary and filter only events, not tree
   - Logs with no matching events are omitted when filters are active
 
@@ -50,6 +51,16 @@ Options:
       Exclusions win when a type is both included and excluded.
   --min-duration-ms <number>
       Include only events with durationMs greater than or equal to this value.
+  --near-limit
+      Report transactions with near-threshold governor limit usage.
+      This is an aggregate report mode and cannot be combined with tree,
+      context, or event filter options.
+  --limit-threshold <LIMIT=percentage[,LIMIT=percentage...]>
+      Override near-limit thresholds. Can be repeated.
+      Defaults ignore QUEUEABLE_JOBS and MOBILE_APEX_PUSH unless overridden.
+  --exclude-limit <LIMIT[,LIMIT...]>
+      Exclude matching governor limits from --near-limit reports.
+      Exclusions win over defaults and threshold overrides.
   --schema
       Print the JSON output schema and field reference.
   -v, --version
@@ -87,6 +98,12 @@ Examples:
 
   Show SOQL events with their execution context:
     ... | apex-log-parser --type SOQL --include-context
+
+  Show transactions near Salesforce governor limits:
+    ... | apex-log-parser --near-limit
+
+  Lower thresholds or opt into ignored limit types:
+    ... | apex-log-parser --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
 
   Show the slowest events across multiple logs:
     ... | apex-log-parser | jq -s '[.[].events[] | select((.durationMs // 0) > 0)] | sort_by(.durationMs) | reverse[:20]'
@@ -137,6 +154,14 @@ JSON output schema:
       Recursive execution tree using the same event fields plus children[].
       Included only when using --include-tree. Rendered as human-readable text
       instead of JSON when using --tree.
+    nearLimitTransactions[]
+      Present instead of events when using --near-limit. Logs with no matches
+      are omitted. Each transaction includes executionId, label, timeStart,
+      timeEnd, durationMs, and matches[].
+    nearLimitTransactions[].matches[]
+      Aggregated governor-limit pressure by executionId, scope, namespace, and
+      limit. Each match includes scope, namespace, limit, current, max,
+      usagePercentage, threshold, eventId, and timeStart.
 
 Event types:
   CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
@@ -148,6 +173,7 @@ Notes:
   - default JSON output omits tree; use --include-tree to include it
   - default JSON output omits event context; use --include-context to include it
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
+  - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - logs with no matching events are omitted when filters are active
 `.trim();

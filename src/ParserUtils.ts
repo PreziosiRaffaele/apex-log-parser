@@ -132,7 +132,7 @@ export function parseGovernorLimits(limitUsageString: string): LimitsObject {
         return limitsObject;
     }
 
-    const limitTypeByLogString: Record<string, LimitType> = {
+    const limitTypeByLogString: Partial<Record<string, LimitType>> = {
         'Number of SOQL queries': 'SOQL_QUERIES',
         'Number of query rows': 'SOQL_ROWS',
         'Number of SOSL queries': 'SOSL_SEARCHES',
@@ -168,6 +168,7 @@ export function parseGovernorLimits(limitUsageString: string): LimitsObject {
         if (isNaN(current) || isNaN(max)) return;
 
         const type = limitTypeByLogString[limitType];
+        if (!type) return;
 
         limitsObject[type] = {
             current,

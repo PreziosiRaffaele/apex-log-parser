@@ -28,9 +28,11 @@ export class TreeRenderer {
             durationInfo += `] ${this.createDurationBar(node.durationMs, totalDuration)}`;
         }
 
-        if (node.name) {
+        const displayName = node.name ?? (node.type === 'LIMIT' ? node.namespace : undefined);
+
+        if (displayName) {
             const remainingWidth = availableWidth - line.length - durationInfo.length - 1; // -1 for space
-            let name = node.name;
+            let name = displayName;
             if (name.length > remainingWidth) {
                 if (remainingWidth > 4) {
                     name = name.substring(0, remainingWidth - 4) + '...';

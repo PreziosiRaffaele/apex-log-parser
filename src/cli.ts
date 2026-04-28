@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import readline from 'readline';
-import { ApexLogParser, ParsedLog, EventNode, NodeType } from './index.js';
+import { ApexLogParser } from './index.js';
+import type { ParsedLog, EventNode, NodeType, LimitType } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
 import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
+import { buildNearLimitReport, createDefaultNearLimitThresholds, isLimitType, LIMIT_TYPES, type NearLimitOptions } from './NearLimitReport.js';
 import { promises as fs, readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs as parseNodeArgs } from 'node:util';
@@ -20,6 +22,8 @@ type ParsedArgs = {
     includeContext: boolean;
     inputFormat: 'raw' | 'ndjson';
     filters: EventFilters;
+    nearLimit: boolean;
+    nearLimitOptions: NearLimitOptions;
 }
 
 type EventFilters = {
@@ -33,6 +37,8 @@ type CliOutputOptions = {
     includeTree: boolean;
     includeContext: boolean;
     filters: EventFilters;
+    nearLimit: boolean;
+    nearLimitOptions: NearLimitOptions;
 };
 
 type CliJsonOutput = {
@@ -92,6 +98,9 @@ function parseArgs(args: string[]): ParsedArgs {
                 type: { type: 'string', multiple: true },
                 'exclude-type': { type: 'string', multiple: true },
                 'min-duration-ms': { type: 'string' },
+                'near-limit': { type: 'boolean' },
+                'limit-threshold': { type: 'string', multiple: true },
+                'exclude-limit': { type: 'string', multiple: true },
                 f: { type: 'string', multiple: true, short: 'f' },
             },
         });
@@ -111,6 +120,14 @@ function parseArgs(args: string[]): ParsedArgs {
         const includeTree = values['include-tree'] ?? false;
         const includeContext = values['include-context'] ?? false;
         const hasFilters = hasActiveFilters(filters);
+        const nearLimit = values['near-limit'] ?? false;
+
+        if (!nearLimit && hasNearLimitOptions(values['limit-threshold'], values['exclude-limit'])) {
+            console.error('Cannot use --limit-threshold or --exclude-limit without --near-limit.');
+            process.exit(1);
+        }
+
+        const nearLimitOptions = parseNearLimitOptions(values['limit-threshold'], values['exclude-limit']);
 
         if (tree && includeTree) {
             console.error('Cannot combine --tree with --include-tree.');
@@ -123,6 +140,13 @@ function parseArgs(args: string[]): ParsedArgs {
         if (hasFilters && tree) {
             console.error('Cannot combine event filters with --tree.');
             process.exit(1);
+        }
+        if (nearLimit) {
+            const incompatibleNearLimitFlags = getNearLimitIncompatibleFlags(tree, includeTree, includeContext, filters);
+            if (incompatibleNearLimitFlags.length > 0) {
+                console.error(`Cannot combine --near-limit with ${incompatibleNearLimitFlags.join(', ')}.`);
+                process.exit(1);
+            }
         }
 
         const files: string[] = [];
@@ -145,12 +169,99 @@ function parseArgs(args: string[]): ParsedArgs {
             includeContext,
             inputFormat: inputFormatValue ?? 'raw',
             filters,
+            nearLimit,
+            nearLimitOptions,
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(message);
         process.exit(1);
     }
+}
+
+function hasNearLimitOptions(
+    thresholdValues: string[] | undefined,
+    excludeLimitValues: string[] | undefined,
+): boolean {
+    return (thresholdValues?.length ?? 0) > 0 || (excludeLimitValues?.length ?? 0) > 0;
+}
+
+function parseNearLimitOptions(
+    thresholdValues: string[] | undefined,
+    excludeLimitValues: string[] | undefined,
+): NearLimitOptions {
+    const thresholds = createDefaultNearLimitThresholds();
+    const excludedLimits = parseLimitTypes(excludeLimitValues, '--exclude-limit');
+
+    for (const value of thresholdValues ?? []) {
+        for (const rawEntry of value.split(',')) {
+            const entry = rawEntry.trim();
+            if (entry.length === 0) continue;
+
+            const equalsIndex = entry.indexOf('=');
+            if (equalsIndex === -1 || entry.indexOf('=', equalsIndex + 1) !== -1) {
+                console.error(`Invalid value for --limit-threshold: ${entry}. Expected LIMIT=percentage.`);
+                process.exit(1);
+            }
+
+            const rawLimit = entry.slice(0, equalsIndex).trim();
+            const rawThreshold = entry.slice(equalsIndex + 1).trim();
+            const limit = parseLimitType(rawLimit, '--limit-threshold');
+            const threshold = Number(rawThreshold);
+
+            if (rawThreshold.length === 0 || !Number.isFinite(threshold) || threshold < 0 || threshold > 100) {
+                console.error(`Invalid percentage for --limit-threshold ${rawLimit}: ${rawThreshold}. Expected a number from 0 to 100.`);
+                process.exit(1);
+            }
+
+            thresholds.set(limit, threshold);
+        }
+    }
+
+    return { thresholds, excludedLimits };
+}
+
+function parseLimitTypes(values: string[] | undefined, optionName: string): Set<LimitType> {
+    const limitTypes = new Set<LimitType>();
+
+    for (const value of values ?? []) {
+        for (const rawType of value.split(',')) {
+            const trimmedType = rawType.trim();
+            if (trimmedType.length === 0) continue;
+            limitTypes.add(parseLimitType(trimmedType, optionName));
+        }
+    }
+
+    return limitTypes;
+}
+
+function parseLimitType(rawType: string, optionName: string): LimitType {
+    const normalizedType = rawType.trim().toUpperCase();
+
+    if (!isLimitType(normalizedType)) {
+        console.error(`Invalid limit type for ${optionName}: ${rawType.trim()}. Expected one of: ${LIMIT_TYPES.join(', ')}.`);
+        process.exit(1);
+    }
+
+    return normalizedType;
+}
+
+function getNearLimitIncompatibleFlags(
+    tree: boolean,
+    includeTree: boolean,
+    includeContext: boolean,
+    filters: EventFilters,
+): string[] {
+    const incompatibleFlags: string[] = [];
+
+    if (tree) incompatibleFlags.push('--tree');
+    if (includeTree) incompatibleFlags.push('--include-tree');
+    if (includeContext) incompatibleFlags.push('--include-context');
+    if (filters.includeTypes.size > 0) incompatibleFlags.push('--type');
+    if (filters.excludeTypes.size > 0) incompatibleFlags.push('--exclude-type');
+    if (filters.minDurationMs !== undefined) incompatibleFlags.push('--min-duration-ms');
+
+    return incompatibleFlags;
 }
 
 function parseEventFilters(
@@ -256,6 +367,10 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
 function outputResult(data: ParsedLog, options: CliOutputOptions): void {
     if (options.tree) {
         console.log(new TreeRenderer().renderTree(data));
+    } else if (options.nearLimit) {
+        const output = buildNearLimitReport(data, options.nearLimitOptions);
+        if (!output) return;
+        console.log(JSON.stringify(output, null, 2));
     } else {
         const output = createJsonOutput(data, options);
         if (!output) return;
@@ -448,12 +563,14 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree, includeTree, includeContext, inputFormat, filters } = parseArgs(args);
+    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions } = parseArgs(args);
     const outputOptions: CliOutputOptions = {
         tree,
         includeTree,
         includeContext,
         filters,
+        nearLimit,
+        nearLimitOptions,
     };
 
     const parser = new ApexLogParser();

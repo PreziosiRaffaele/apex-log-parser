@@ -153,6 +153,30 @@ apex-log-parser -f mylog.log --type SOQL --type DML
 
 Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
 
+### Near-Limit Governor Report
+
+Use `--near-limit` to report transactions with governor-limit pressure. This mode outputs `summary` and `nearLimitTransactions` instead of the flat `events` array, and logs with no near-limit matches are omitted.
+
+```bash
+sf apex get log --number 25 -o AliasOrg | apex-log-parser --near-limit
+```
+
+Repeated `LIMIT` snapshots are collapsed per `executionId`, scope, namespace, and limit, keeping the worst snapshot by usage percentage, current value, and latest timestamp. Apex test transactions are kept separate by their execution block.
+
+Default thresholds are tuned for actionable pressure: SOQL, DML, CPU, and heap limits match at 70%; SOSL and callouts at 80%; email invocations and future calls at 90%. `QUEUEABLE_JOBS` and `MOBILE_APEX_PUSH` are ignored unless you opt in:
+
+```bash
+apex-log-parser -f mylog.log --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
+```
+
+Exclude noisy limits when needed:
+
+```bash
+apex-log-parser -f mylog.log --near-limit --exclude-limit QUEUEABLE_JOBS
+```
+
+`--near-limit` cannot be combined with `--tree`, `--include-tree`, `--include-context`, `--type`, `--exclude-type`, or `--min-duration-ms`.
+
 ### Event Context
 
 Use `--include-context` when filtered events need to show where they happened in the execution stack.
