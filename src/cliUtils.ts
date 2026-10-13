@@ -1,6 +1,8 @@
 import ansiRegex from 'ansi-regex';
 import { promises as fs } from 'fs';
 const regex = ansiRegex();
+const MAX_ANSI_PASSES = 5;
+const ANSI_INTRODUCERS = /[\u001B\u009B]/g;
 
 export function normalizeLogInput(logText: string): string {
     logText = cleanAnsiCodes(logText);
@@ -10,7 +12,15 @@ export function normalizeLogInput(logText: string): string {
 
 export function cleanAnsiCodes(logText: string): string {
     if (!logText) return '';
-    return logText.replace(regex, '');
+    // `sf apex get log` can nest escapes (e.g. "\x1b[\x1b[94m31m"), so one pass may expose a new sequence.
+    // Passes are capped to stay linear on adversarial nesting; leftover introducers are dropped so no
+    // control characters reach the output.
+    for (let pass = 0; pass < MAX_ANSI_PASSES; pass++) {
+        const cleaned = logText.replace(regex, '');
+        if (cleaned === logText) return logText;
+        logText = cleaned;
+    }
+    return logText.replace(ANSI_INTRODUCERS, '');
 }
 
 
