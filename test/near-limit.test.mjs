@@ -66,6 +66,20 @@ const standaloneTestingLimitsLog = [
     '09:00:00.0 (11000000)|EXECUTION_FINISHED',
 ].join('\n');
 
+const breachLog = [
+    '64.0 APEX_CODE,FINEST;APEX_PROFILING,FINEST',
+    '09:00:00.0 (1000000)|EXECUTION_STARTED',
+    '09:00:00.0 (2000000)|CODE_UNIT_STARTED|[EXTERNAL]|Class.Test.breach()',
+    '09:00:00.0 (3000000)|FATAL_ERROR|System.LimitException: Too many queueable jobs added to the queue: 2',
+    '09:00:00.0 (4000000)|CUMULATIVE_LIMIT_USAGE',
+    '09:00:00.0 (5000000)|LIMIT_USAGE_FOR_NS|(default)|',
+    '  Number of SOQL queries: 101 out of 100',
+    '  Number of queueable jobs added to the queue: 2 out of 1',
+    '09:00:00.0 (6000000)|CUMULATIVE_LIMIT_USAGE_END',
+    '09:00:00.0 (7000000)|CODE_UNIT_FINISHED|Class.Test.breach()',
+    '09:00:00.0 (8000000)|EXECUTION_FINISHED',
+].join('\n');
+
 function runCli(args, input = nearLimitLog) {
     return spawnSync(process.execPath, [cliPath, ...args], {
         input,
@@ -94,11 +108,19 @@ test('--near-limit separates executions, scopes testing limits, and collapses re
     assert.deepEqual(
         firstTransaction.matches.map(match => [match.limit, match.scope, match.current, match.eventId]),
         [
+            ['QUEUEABLE_JOBS', 'cumulative', 50, '00005'],
             ['SOQL_QUERIES', 'cumulative', 72, '00005'],
             ['CPU_TIME', 'cumulative', 7100, '00005'],
         ],
     );
-    assert.equal(firstTransaction.matches.some(match => match.limit === 'QUEUEABLE_JOBS'), false);
+    assert.deepEqual(
+        firstTransaction.matches.map(match => [match.limit, match.threshold, match.breached]),
+        [
+            ['QUEUEABLE_JOBS', 100, false],
+            ['SOQL_QUERIES', 70, false],
+            ['CPU_TIME', 70, false],
+        ],
+    );
 
     const secondTransaction = report.nearLimitTransactions[1];
     assert.equal(secondTransaction.executionId, '00006');
@@ -155,6 +177,45 @@ test('--exclude-limit wins over defaults and threshold overrides', () => {
         report.nearLimitTransactions[0].matches.map(match => match.limit),
         ['CPU_TIME'],
     );
+});
+
+test('--near-limit always reports breaches, including limits without a default threshold', () => {
+    const report = parseReport(runCli(['--near-limit'], breachLog));
+
+    assert.equal(report.nearLimitTransactions.length, 1);
+    assert.deepEqual(
+        report.nearLimitTransactions[0].matches.map(match => [
+            match.limit,
+            match.current,
+            match.max,
+            match.usagePercentage,
+            match.threshold,
+            match.breached,
+        ]),
+        [
+            ['QUEUEABLE_JOBS', 2, 1, 200, 100, true],
+            ['SOQL_QUERIES', 101, 100, 101, 70, true],
+        ],
+    );
+});
+
+test('--near-limit does not report limits without a default threshold below their max', () => {
+    const result = runCli(['--near-limit'], breachLog.replace(
+        'Number of queueable jobs added to the queue: 2 out of 1',
+        'Number of queueable jobs added to the queue: 199 out of 200',
+    ).replace('Number of SOQL queries: 101 out of 100', 'Number of SOQL queries: 1 out of 100'));
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.equal(result.stdout.trim(), '');
+});
+
+test('--exclude-limit wins over the breach rule', () => {
+    const result = runCli(['--near-limit', '--exclude-limit', 'QUEUEABLE_JOBS,SOQL_QUERIES'], breachLog);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, '');
+    assert.equal(result.stdout.trim(), '');
 });
 
 test('--near-limit omits logs with no matches', () => {

@@ -128,6 +128,38 @@ In this mode, `summary.source` and each event `source` are set to `Id`, and any 
 }
 ```
 
+### Triage Summary
+
+Every JSON output (default and `--near-limit`) includes triage fields in `summary`, computed from the full log so they are never affected by `--type`, `--exclude-type`, or `--min-duration-ms`:
+
+- `outcome`: `fatal` when the log contains any `FATAL_ERROR`, otherwise `success`.
+- `errors`: one entry per `FATAL_ERROR` with `eventId`, `exceptionType`, `message` (the exception message without the stack trace), and `lineNumber` (top stack frame) when available. Identical consecutive fatal errors are collapsed, because Salesforce logs each one twice. Omitted when there are no fatal errors.
+- `peakLimits`: the worst `LIMIT` snapshot per limit type across all namespaces and scopes (highest `usagePercentage`, then `current`), with `current`, `max`, `usagePercentage`, and `namespace`. Only limits with `max > 0` and `current > 0` are included.
+- `counts`: the number of `soql`, `dml`, `callouts`, `exceptionsThrown`, `fatalErrors`, and `userDebug` events. `fatalErrors` counts raw `FATAL_ERROR` events, before deduplication.
+
+```json
+"outcome": "fatal",
+"errors": [
+  {
+    "eventId": "10091",
+    "exceptionType": "System.LimitException",
+    "message": "Too many queueable jobs added to the queue: 2",
+    "lineNumber": 127
+  }
+],
+"peakLimits": {
+  "SOQL_QUERIES": { "current": 55, "max": 200, "usagePercentage": 28, "namespace": "default" },
+  "QUEUEABLE_JOBS": { "current": 2, "max": 1, "usagePercentage": 200, "namespace": "default" }
+},
+"counts": { "soql": 95, "dml": 8, "callouts": 0, "exceptionsThrown": 1, "fatalErrors": 2, "userDebug": 25 }
+```
+
+To list failed logs:
+
+```bash
+apex-log-parser -f logs/*.log --type FATAL_ERROR | jq -c 'select(.summary.outcome == "fatal") | {source: .summary.source, errors: .summary.errors}'
+```
+
 ### Filtering Events
 
 Use CLI filters for common event filtering while keeping the transaction `summary` in the output.
@@ -175,13 +207,15 @@ sf apex get log --number 25 -o AliasOrg | apex-log-parser --near-limit
 
 Repeated `LIMIT` snapshots are collapsed per `executionId`, scope, namespace, and limit, keeping the worst snapshot by usage percentage, current value, and latest timestamp. Apex test transactions are kept separate by their execution block.
 
-Default thresholds are tuned for actionable pressure: SOQL, DML, CPU, and heap limits match at 70%; SOSL and callouts at 80%; email invocations and future calls at 90%. `QUEUEABLE_JOBS` and `MOBILE_APEX_PUSH` are ignored unless you opt in:
+Default thresholds are tuned for actionable pressure: SOQL, DML, CPU, and heap limits match at 70%; SOSL and callouts at 80%; email invocations and future calls at 90%. `QUEUEABLE_JOBS` and `MOBILE_APEX_PUSH` are ignored below 100% unless you opt in:
 
 ```bash
-apex-log-parser -f mylog.log --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
+apex-log-parser -f mylog.log --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=80
 ```
 
-Exclude noisy limits when needed:
+Any limit at or above its max (`current >= max`) is always reported, even without a threshold, so a log that fails with `System.LimitException` is never silently omitted. Such matches report `threshold: 100`. Each match also includes `breached: true` when `current` exceeds `max`.
+
+Exclude noisy limits when needed. Exclusions win, including over the at-limit rule:
 
 ```bash
 apex-log-parser -f mylog.log --near-limit --exclude-limit QUEUEABLE_JOBS

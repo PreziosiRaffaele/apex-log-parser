@@ -1,5 +1,6 @@
 import { removeTrailingNewlines, sanitizeString, decodeEscapedPipes, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
+import { buildTriageSummary } from './TriageSummary.js';
 import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType, LimitScope } from './types.js';
 
 type ParserSummaryState = {
@@ -134,6 +135,7 @@ export class ApexLogParser {
         // Round duration to 3 decimal places
         durationMs = Math.round((durationMs + Number.EPSILON) * 1000) / 1000;
 
+        const events = this.rootNode ? this.flattenEvents(this.rootNode, options) : [];
         const summary: ParsedLogSummary = {
             source: this.summary.source,
             user: this.summary.user,
@@ -141,12 +143,13 @@ export class ApexLogParser {
             durationMs,
             sizeMb: this.logSize ? parseFloat((this.logSize / (1000 * 1000)).toFixed(5)) : 0,
             logLevels: this.summary.logLevels,
+            ...buildTriageSummary(events),
         };
 
         const output: ParsedLog = {
             summary,
             tree: this.rootNode,
-            events: this.rootNode ? this.flattenEvents(this.rootNode, options) : [],
+            events,
         };
 
         return output;
