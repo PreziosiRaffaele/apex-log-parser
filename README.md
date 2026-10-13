@@ -163,7 +163,17 @@ apex-log-parser -f mylog.log --type SOQL,DML
 apex-log-parser -f mylog.log --type SOQL --type DML
 ```
 
-Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
+In JSON output, filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
+
+`--min-duration-ms` can also be used with `--tree`, where it prunes the rendered tree instead and every log is still printed (see [Tree View Output](#tree-view-output)). `--type` and `--exclude-type` cannot be combined with `--tree`.
+
+### Compact JSON
+
+Use `--compact` to print each JSON result on a single line instead of with 2-space indentation. With multiple logs this produces NDJSON (one result per line). It applies to every JSON mode, including `--include-tree` and `--near-limit`, and cannot be combined with `--tree`.
+
+```bash
+apex-log-parser -f log1.log log2.log --compact | jq -c '.summary'
+```
 
 ### Near-Limit Governor Report
 
@@ -280,6 +290,41 @@ To include the recursive tree in JSON output, use `--include-tree`:
 ```bash
 apex-log-parser -f mylog.log --include-tree
 ```
+
+#### Pruning Large Trees
+
+Large logs produce trees too big to read. Use `--max-depth <N>` with `--tree` or `--include-tree` to drop nodes deeper than `N` (`ROOT` is depth 0). In the text tree, each pruned subtree becomes one line:
+
+```bash
+apex-log-parser -f mylog.log --tree --max-depth 2
+```
+
+```
+ROOT(00001)
+└── EXECUTION(00002) [113ms|100%] ████████████████████
+    └── CODE_UNIT(00003) Class.Test.run() [111ms|98%] ███████████████████
+        └── … 5 descendants hidden
+```
+
+In JSON, a pruned node omits `children` and gets `hiddenDescendants` with the number of nodes removed below it. `--max-depth` never changes `events`.
+
+With `--tree`, `--min-duration-ms` hides nodes whose `durationMs` is below the threshold. Ancestors of kept nodes are always shown, and hidden siblings collapse into one line with their count and total duration:
+
+```bash
+apex-log-parser -f mylog.log --tree --min-duration-ms 50
+```
+
+```
+ROOT(00001)
+└── EXECUTION(00002) [113ms|100%] ████████████████████
+    └── CODE_UNIT(00003) Class.Test.run() [111ms|98%] ███████████████████
+        ├── METHOD(00006) Test.slow() [104ms|92%] ██████████████████
+        │   └── METHOD(00007) Test.inner() [102ms|90%] ██████████████████
+        │       └── SOQL(00008) Query on account [100ms|88%] █████████████████
+        └── … 2 nodes hidden [3ms total]
+```
+
+Both options can be combined. With `--include-tree`, `--min-duration-ms` keeps its usual meaning and filters only `events`.
 
 ### Exit Codes
 
