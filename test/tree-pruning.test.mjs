@@ -138,6 +138,15 @@ test('--compact applies to --near-limit output', () => {
     assert.equal(JSON.parse(lines[0]).nearLimitTransactions.length, 1);
 });
 
+test('--compact applies to --hotspots output', () => {
+    const result = runCli(['--hotspots', '--compact']);
+
+    assert.equal(result.status, 0, result.stderr);
+    const lines = treeLines(result.stdout);
+    assert.equal(lines.length, 1);
+    assert.ok(Array.isArray(JSON.parse(lines[0]).hotspots));
+});
+
 test('rejects invalid tree pruning and compact combinations', () => {
     const cases = [
         [['--max-depth', '2'], /Cannot use --max-depth without --tree or --include-tree/],

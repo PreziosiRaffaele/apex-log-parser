@@ -43,6 +43,7 @@ type TransactionBuilder = {
 };
 
 const UNKNOWN_EXECUTION_ID = 'unknown';
+const BREACH_THRESHOLD = 100;
 
 export function isLimitType(value: string): value is LimitType {
     return LIMIT_TYPES.includes(value as LimitType);
@@ -52,7 +53,7 @@ export function createDefaultNearLimitThresholds(): Map<LimitType, number> {
     return new Map(DEFAULT_NEAR_LIMIT_THRESHOLDS);
 }
 
-export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions): NearLimitReport | undefined {
+export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions): NearLimitReport {
     const transactions = collectTransactionMetadata(data.events);
 
     for (const event of data.events) {
@@ -66,11 +67,13 @@ export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions)
         for (const limit of LIMIT_TYPES) {
             if (options.excludedLimits.has(limit)) continue;
 
-            const threshold = options.thresholds.get(limit);
-            if (threshold === undefined) continue;
-
             const detail = event.limits[limit];
-            if (!detail || detail.max <= 0 || detail.usagePercentage < threshold) continue;
+            if (!detail || detail.max <= 0) continue;
+
+            // Without a configured threshold, only report limits actually reached (current >= max).
+            const configured = options.thresholds.get(limit);
+            if (configured === undefined ? detail.current < detail.max : detail.usagePercentage < configured) continue;
+            const threshold = configured ?? BREACH_THRESHOLD;
 
             const match: NearLimitMatch = {
                 scope,
@@ -79,6 +82,7 @@ export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions)
                 current: detail.current,
                 max: detail.max,
                 usagePercentage: detail.usagePercentage,
+                breached: detail.current > detail.max,
                 threshold,
                 eventId: event.id,
                 timeStart: event.timeStart ?? 0,
@@ -95,10 +99,6 @@ export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions)
     const nearLimitTransactions = Array.from(transactions.values())
         .filter(transaction => transaction.matchesByKey.size > 0)
         .map(createNearLimitTransaction);
-
-    if (nearLimitTransactions.length === 0) {
-        return undefined;
-    }
 
     return {
         summary: data.summary,
