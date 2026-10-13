@@ -25,9 +25,8 @@ type HotspotBuilder = {
  * Groups events by (type, name), ranked by total self time.
  * Events must be parsed with includeContext: an occurrence nested inside an ancestor frame
  * with the same type and name is excluded from inclusiveMs.
- * Returns undefined when no event qualifies.
  */
-export function buildHotspotReport(summary: ParsedLogSummary, events: EventNode[], top: number): HotspotReport | undefined {
+export function buildHotspotReport(summary: ParsedLogSummary, events: EventNode[], top: number): HotspotReport {
     const groups = new Map<string, HotspotBuilder>();
 
     for (const event of events) {
@@ -51,8 +50,6 @@ export function buildHotspotReport(summary: ParsedLogSummary, events: EventNode[
         group.maxSelfMs = Math.max(group.maxSelfMs, selfMs);
         if (isOutermost) group.inclusiveMs += event.durationMs;
     }
-
-    if (groups.size === 0) return undefined;
 
     const hotspots = Array.from(groups.values())
         .map(createHotspot)

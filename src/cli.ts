@@ -417,28 +417,20 @@ function outputResult(data: ParsedLog, options: CliOutputOptions): void {
         console.log(new TreeRenderer().renderTree(data));
     } else if (options.hotspots) {
         const output = buildHotspotReport(data.summary, filterEvents(data.events, options.filters), options.top);
-        if (!output) return;
         console.log(JSON.stringify(output, null, 2));
     } else if (options.nearLimit) {
         const output = buildNearLimitReport(data, options.nearLimitOptions);
-        if (!output) return;
         console.log(JSON.stringify(output, null, 2));
     } else {
         const output = createJsonOutput(data, options);
-        if (!output) return;
         console.log(JSON.stringify(output, null, 2));
     }
 }
 
-function createJsonOutput(data: ParsedLog, options: CliOutputOptions): CliJsonOutput | undefined {
-    const filteredEvents = filterEvents(data.events, options.filters);
-    if (hasActiveFilters(options.filters) && filteredEvents.length === 0) {
-        return undefined;
-    }
-
+function createJsonOutput(data: ParsedLog, options: CliOutputOptions): CliJsonOutput {
     const output: CliJsonOutput = {
         summary: data.summary,
-        events: filteredEvents,
+        events: filterEvents(data.events, options.filters),
     };
 
     if (options.includeTree) {

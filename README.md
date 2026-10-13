@@ -195,11 +195,11 @@ apex-log-parser -f mylog.log --type SOQL,DML
 apex-log-parser -f mylog.log --type SOQL --type DML
 ```
 
-Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and logs with no matching events are omitted.
+Filters apply only to the flat `events` array. `summary` is preserved, any `--include-tree` output remains the full unfiltered tree, and every parsed log is still emitted: a log with no matching events outputs `"events": []`.
 
 ### Near-Limit Governor Report
 
-Use `--near-limit` to report transactions with governor-limit pressure. This mode outputs `summary` and `nearLimitTransactions` instead of the flat `events` array, and logs with no near-limit matches are omitted.
+Use `--near-limit` to report transactions with governor-limit pressure. This mode outputs `summary` and `nearLimitTransactions` instead of the flat `events` array. Every parsed log is emitted; a log with no near-limit matches outputs `"nearLimitTransactions": []`.
 
 ```bash
 sf apex get log --number 25 -o AliasOrg | apex-log-parser --near-limit
@@ -251,7 +251,7 @@ This mode outputs `summary` and `hotspots` instead of `events`. Events are group
 }
 ```
 
-Hotspots are sorted by `totalSelfMs` descending, and `--top` (default 20) caps how many are reported per log. `--type` and `--exclude-type` restrict which events are grouped. `--hotspots` cannot be combined with `--tree`, `--include-tree`, `--near-limit`, or `--min-duration-ms`, and `--top` requires `--hotspots`.
+Hotspots are sorted by `totalSelfMs` descending, and `--top` (default 20) caps how many are reported per log. `--type` and `--exclude-type` restrict which events are grouped; a log with no qualifying events outputs `"hotspots": []`. `--hotspots` cannot be combined with `--tree`, `--include-tree`, `--near-limit`, or `--min-duration-ms`, and `--top` requires `--hotspots`.
 
 ### Event Context
 

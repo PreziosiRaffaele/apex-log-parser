@@ -118,11 +118,11 @@ test('--hotspots groups DML regardless of row count and CALLOUT by request', () 
     ]);
 });
 
-test('--hotspots omits logs with no qualifying events', () => {
-    const result = runCli(['--hotspots', '--type', 'USER_DEBUG']);
+test('--hotspots emits an empty report for logs with no qualifying events', () => {
+    const report = parseOutput(runCli(['--hotspots', '--type', 'USER_DEBUG']));
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout.trim(), '');
+    assert.ok(report.summary);
+    assert.deepEqual(report.hotspots, []);
 });
 
 test('--hotspots rejects incompatible flags and invalid --top', () => {

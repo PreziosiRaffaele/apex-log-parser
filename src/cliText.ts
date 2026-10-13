@@ -28,7 +28,7 @@ Notes:
   - --near-limit reports transactions with governor-limit pressure instead of events
   - --hotspots reports the operations with the most self time instead of events
   - Event filters preserve summary and filter only events, not tree; summary triage fields always reflect the full log
-  - Logs with no matching events are omitted when filters are active
+  - Every parsed log is emitted; logs with no matching events have events: []
 
 Options:
   -f <file1.log> [file2.log ...]
@@ -188,16 +188,16 @@ JSON output schema:
       Present instead of events when using --hotspots. Events with a duration,
       except EXECUTION, LIMIT, EXCEPTION_THROWN, FATAL_ERROR, and USER_DEBUG, grouped
       by type and name (DML by operation and object, ignoring row count;
-      CALLOUT by request) and sorted by totalSelfMs descending. Logs with no
-      hotspots are omitted. Each hotspot includes type, name, count,
+      CALLOUT by request) and sorted by totalSelfMs descending. Empty ([]) for
+      logs with no qualifying events. Each hotspot includes type, name, count,
       totalSelfMs, maxSelfMs, inclusiveMs (outermost occurrences only, so
       recursion is not double-counted), and slowest.
     hotspots[].slowest
       Occurrence with the highest selfMs: id, durationMs, selfMs, lineNumber,
       and context.stack with the same ancestor frames as --include-context.
     nearLimitTransactions[]
-      Present instead of events when using --near-limit. Logs with no matches
-      are omitted. Each transaction includes executionId, label, timeStart,
+      Present instead of events when using --near-limit. Empty ([]) for logs
+      with no matches. Each transaction includes executionId, label, timeStart,
       timeEnd, durationMs, and matches[].
     nearLimitTransactions[].matches[]
       Aggregated governor-limit pressure by executionId, scope, namespace, and
@@ -221,5 +221,5 @@ Notes:
   - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
-  - logs with no matching events are omitted when filters are active
+  - every parsed log is emitted; events is [] when no events match the filters
 `.trim();

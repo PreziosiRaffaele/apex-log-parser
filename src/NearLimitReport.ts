@@ -53,7 +53,7 @@ export function createDefaultNearLimitThresholds(): Map<LimitType, number> {
     return new Map(DEFAULT_NEAR_LIMIT_THRESHOLDS);
 }
 
-export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions): NearLimitReport | undefined {
+export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions): NearLimitReport {
     const transactions = collectTransactionMetadata(data.events);
 
     for (const event of data.events) {
@@ -99,10 +99,6 @@ export function buildNearLimitReport(data: ParsedLog, options: NearLimitOptions)
     const nearLimitTransactions = Array.from(transactions.values())
         .filter(transaction => transaction.matchesByKey.size > 0)
         .map(createNearLimitTransaction);
-
-    if (nearLimitTransactions.length === 0) {
-        return undefined;
-    }
 
     return {
         summary: data.summary,
