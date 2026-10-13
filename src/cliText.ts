@@ -16,7 +16,8 @@ Input:
   - When parsing multiple logs, use jq -s to collect results into an array
 
 Default JSON output:
-  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, and optional NDJSON metadata
+  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, optional NDJSON metadata,
+              and triage fields (outcome, errors, peakLimits, counts) computed from the full log
   - events    flat event stream for filtering, grouping, and aggregation with jq
 
 Notes:
@@ -25,7 +26,8 @@ Notes:
   - --include-tree includes the recursive tree in JSON output
   - --include-context adds compact execution ancestry to events
   - --near-limit reports transactions with governor-limit pressure instead of events
-  - Event filters preserve summary and filter only events, not tree
+  - --hotspots reports the operations with the most self time instead of events
+  - Event filters preserve summary and filter only events, not tree; summary triage fields always reflect the full log
   - Every parsed log is emitted; logs with no matching events have events: []
 
 Options:
@@ -59,10 +61,19 @@ Options:
       context, or event filter options.
   --limit-threshold <LIMIT=percentage[,LIMIT=percentage...]>
       Override near-limit thresholds. Can be repeated.
-      Defaults ignore QUEUEABLE_JOBS and MOBILE_APEX_PUSH unless overridden.
+      QUEUEABLE_JOBS and MOBILE_APEX_PUSH are ignored below 100% unless overridden.
+      Any limit at or above its max (current >= max) is always reported unless excluded.
   --exclude-limit <LIMIT[,LIMIT...]>
       Exclude matching governor limits from --near-limit reports.
       Exclusions win over defaults and threshold overrides.
+  --hotspots
+      Report the slowest operations by self time (exclusive of children),
+      grouped by event type and name (DML by operation and object, ignoring row
+      count; CALLOUT by request). Outputs summary and hotspots instead of
+      events. Can be combined with --type and --exclude-type, but not with
+      --tree, --include-tree, --near-limit, or --min-duration-ms.
+  --top <N>
+      Number of hotspots to report per log. Defaults to 20. Requires --hotspots.
   --schema
       Print the JSON output schema and field reference.
   -v, --version
@@ -104,11 +115,14 @@ Examples:
   Show SOQL events with their execution context:
     ... | apex-log-parser --type SOQL --include-context
 
+  Find the operations that actually consume the time:
+    ... | apex-log-parser --hotspots --top 10
+
   Show transactions near Salesforce governor limits:
     ... | apex-log-parser --near-limit
 
   Lower thresholds or opt into ignored limit types:
-    ... | apex-log-parser --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
+    ... | apex-log-parser --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=80
 
   Show the slowest events across multiple logs:
     ... | apex-log-parser | jq -s '[.[].events[] | select((.durationMs // 0) > 0)] | sort_by(.durationMs) | reverse[:20]'
@@ -128,6 +142,14 @@ JSON output schema:
       durationMs  Total tracked execution time in milliseconds
       sizeMb      Raw log size in megabytes
       logLevels   Object keyed by Salesforce debug category with the configured level as value
+      outcome     'fatal' when any FATAL_ERROR exists, otherwise 'success'
+      errors[]    FATAL_ERROR entries with eventId, exceptionType, message (without stack trace),
+                  and lineNumber when available; identical consecutive entries are collapsed;
+                  omitted when there are no fatal errors
+      peakLimits  Object keyed by limit type with the worst LIMIT snapshot across namespaces and scopes:
+                  current, max, usagePercentage, namespace; only limits with max > 0 and current > 0
+      counts      Event counts: soql, dml, callouts, exceptionsThrown, fatalErrors (before
+                  deduplication), userDebug
     events[]
       Flat list of all parsed events. Common fields include:
       source        Input source identifier copied onto each flattened event
@@ -144,7 +166,8 @@ JSON output schema:
       operation     DML operation name such as Insert, Update, or Delete
       timeStart     Raw event start timestamp in nanoseconds
       timeEnd       Raw event end timestamp in nanoseconds for scoped events
-      durationMs    Computed event duration in milliseconds rounded to 3 decimals
+      durationMs    Computed event duration in milliseconds rounded to 3 decimals, including children
+      selfMs        Exclusive time: durationMs minus the direct children's durationMs, clamped at 0
       exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
       debugLevel    System.debug logging level such as DEBUG, INFO, or WARN for USER_DEBUG events
       message       Full System.debug message text for USER_DEBUG events, including '|' and newlines
@@ -161,6 +184,17 @@ JSON output schema:
       Recursive execution tree using the same event fields plus children[].
       Included only when using --include-tree. Rendered as human-readable text
       instead of JSON when using --tree.
+    hotspots[]
+      Present instead of events when using --hotspots. Events with a duration,
+      except EXECUTION, LIMIT, EXCEPTION_THROWN, FATAL_ERROR, and USER_DEBUG, grouped
+      by type and name (DML by operation and object, ignoring row count;
+      CALLOUT by request) and sorted by totalSelfMs descending. Empty ([]) for
+      logs with no qualifying events. Each hotspot includes type, name, count,
+      totalSelfMs, maxSelfMs, inclusiveMs (outermost occurrences only, so
+      recursion is not double-counted), and slowest.
+    hotspots[].slowest
+      Occurrence with the highest selfMs: id, durationMs, selfMs, lineNumber,
+      and context.stack with the same ancestor frames as --include-context.
     nearLimitTransactions[]
       Present instead of events when using --near-limit. Empty ([]) for logs
       with no matches. Each transaction includes executionId, label, timeStart,
@@ -168,7 +202,10 @@ JSON output schema:
     nearLimitTransactions[].matches[]
       Aggregated governor-limit pressure by executionId, scope, namespace, and
       limit. Each match includes scope, namespace, limit, current, max,
-      usagePercentage, threshold, eventId, and timeStart.
+      usagePercentage, breached, threshold, eventId, and timeStart.
+      breached is true when current exceeds max. Limits at or above their max
+      (current >= max) are always reported unless excluded; threshold is 100
+      when no configured threshold applies.
 
 Event types:
   CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
@@ -180,6 +217,8 @@ Notes:
   - default JSON output omits tree; use --include-tree to include it
   - default JSON output omits event context; use --include-context to include it
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
+  - --hotspots is an aggregate report mode; --type and --exclude-type restrict which events are grouped
+  - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - every parsed log is emitted; events is [] when no events match the filters
