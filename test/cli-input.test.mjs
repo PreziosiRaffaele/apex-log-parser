@@ -124,3 +124,18 @@ test('raw stdin exits 1 when every log fails to parse', () => {
     assert.match(result.stderr, /Error parsing stdin: 1: boom/);
     assert.match(result.stderr, /Error parsing stdin: 2: boom/);
 });
+
+test('stdin strips nested ANSI escapes emitted by sf apex get log', () => {
+    const fatalLine =
+        '\x1b[94m09\x1b[39m:00:00.0 (\x1b[94m5500000\x1b[39m)|\x1b[1m\x1b[32mFATAL_ERROR\x1b[39m\x1b[22m|' +
+        '\x1b[1m\x1b[\x1b[94m31mSystem.QueryException\x1b[39m\x1b[39m\x1b[22m: List has no rows for assignment to SObject';
+    const lines = sampleLog.split('\n');
+    lines.splice(5, 0, fatalLine);
+    const result = spawnSync(process.execPath, [cliPath], { input: lines.join('\n'), encoding: 'utf-8' });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /\\u001b/);
+    const fatal = JSON.parse(result.stdout).events.find((event) => event.type === 'FATAL_ERROR');
+    assert.equal(fatal.exceptionType, 'System.QueryException');
+    assert.equal(fatal.name, 'System.QueryException: List has no rows for assignment to SObject');
+});

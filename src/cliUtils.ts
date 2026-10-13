@@ -10,7 +10,13 @@ export function normalizeLogInput(logText: string): string {
 
 export function cleanAnsiCodes(logText: string): string {
     if (!logText) return '';
-    return logText.replace(regex, '');
+    // `sf apex get log` can nest escapes (e.g. "\x1b[\x1b[94m31m"), so one pass may expose a new sequence.
+    let previous: string;
+    do {
+        previous = logText;
+        logText = logText.replace(regex, '');
+    } while (logText !== previous);
+    return logText;
 }
 
 
