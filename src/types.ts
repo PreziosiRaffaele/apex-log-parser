@@ -83,7 +83,7 @@ export interface LogLevel {
 
 export type LogLevelsMap = Partial<Record<LogLevel['type'], LogLevel['level']>>;
 
-export interface ParsedLogSummary {
+export interface ParsedLogSummary extends TriageSummary {
     source: string;
     user?: string;
     startTime?: string;
@@ -94,6 +94,36 @@ export interface ParsedLogSummary {
     durationMs: number;
     sizeMb: number;
     logLevels: LogLevelsMap;
+}
+
+export type TransactionOutcome = 'success' | 'fatal';
+
+export interface SummaryError {
+    eventId: string;
+    exceptionType: string;
+    message: string;
+    lineNumber?: number;
+}
+
+export interface PeakLimit extends LimitDetail {
+    namespace: string;
+}
+
+export interface SummaryCounts {
+    soql: number;
+    dml: number;
+    callouts: number;
+    exceptionsThrown: number;
+    fatalErrors: number;
+    userDebug: number;
+}
+
+/** Computed from the full log; CLI event filters never change these fields. */
+export interface TriageSummary {
+    outcome: TransactionOutcome;
+    errors?: SummaryError[];
+    peakLimits: Partial<Record<LimitType, PeakLimit>>;
+    counts: SummaryCounts;
 }
 
 export type EventContextFrame = {

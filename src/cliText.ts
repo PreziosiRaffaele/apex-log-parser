@@ -16,7 +16,8 @@ Input:
   - When parsing multiple logs, use jq -s to collect results into an array
 
 Default JSON output:
-  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, and optional NDJSON metadata
+  - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, optional NDJSON metadata,
+              and triage fields (outcome, errors, peakLimits, counts) computed from the full log
   - events    flat event stream for filtering, grouping, and aggregation with jq
 
 Notes:
@@ -25,7 +26,7 @@ Notes:
   - --include-tree includes the recursive tree in JSON output
   - --include-context adds compact execution ancestry to events
   - --near-limit reports transactions with governor-limit pressure instead of events
-  - Event filters preserve summary and filter only events, not tree
+  - Event filters preserve summary and filter only events, not tree; summary triage fields always reflect the full log
   - Logs with no matching events are omitted when filters are active
 
 Options:
@@ -129,6 +130,14 @@ JSON output schema:
       durationMs  Total tracked execution time in milliseconds
       sizeMb      Raw log size in megabytes
       logLevels   Object keyed by Salesforce debug category with the configured level as value
+      outcome     'fatal' when any FATAL_ERROR exists, otherwise 'success'
+      errors[]    FATAL_ERROR entries with eventId, exceptionType, message (without stack trace),
+                  and lineNumber when available; identical consecutive entries are collapsed;
+                  omitted when there are no fatal errors
+      peakLimits  Object keyed by limit type with the worst LIMIT snapshot across namespaces and scopes:
+                  current, max, usagePercentage, namespace; only limits with max > 0 and current > 0
+      counts      Event counts: soql, dml, callouts, exceptionsThrown, fatalErrors (before
+                  deduplication), userDebug
     events[]
       Flat list of all parsed events. Common fields include:
       source        Input source identifier copied onto each flattened event
@@ -184,6 +193,7 @@ Notes:
   - default JSON output omits tree; use --include-tree to include it
   - default JSON output omits event context; use --include-context to include it
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
+  - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - logs with no matching events are omitted when filters are active

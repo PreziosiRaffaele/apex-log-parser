@@ -128,6 +128,38 @@ In this mode, `summary.source` and each event `source` are set to `Id`, and any 
 }
 ```
 
+### Triage Summary
+
+Every JSON output (default and `--near-limit`) includes triage fields in `summary`, computed from the full log so they are never affected by `--type`, `--exclude-type`, or `--min-duration-ms`:
+
+- `outcome`: `fatal` when the log contains any `FATAL_ERROR`, otherwise `success`.
+- `errors`: one entry per `FATAL_ERROR` with `eventId`, `exceptionType`, `message` (the exception message without the stack trace), and `lineNumber` (top stack frame) when available. Identical consecutive fatal errors are collapsed, because Salesforce logs each one twice. Omitted when there are no fatal errors.
+- `peakLimits`: the worst `LIMIT` snapshot per limit type across all namespaces and scopes (highest `usagePercentage`, then `current`), with `current`, `max`, `usagePercentage`, and `namespace`. Only limits with `max > 0` and `current > 0` are included.
+- `counts`: the number of `soql`, `dml`, `callouts`, `exceptionsThrown`, `fatalErrors`, and `userDebug` events. `fatalErrors` counts raw `FATAL_ERROR` events, before deduplication.
+
+```json
+"outcome": "fatal",
+"errors": [
+  {
+    "eventId": "10091",
+    "exceptionType": "System.LimitException",
+    "message": "Too many queueable jobs added to the queue: 2",
+    "lineNumber": 127
+  }
+],
+"peakLimits": {
+  "SOQL_QUERIES": { "current": 55, "max": 200, "usagePercentage": 28, "namespace": "default" },
+  "QUEUEABLE_JOBS": { "current": 2, "max": 1, "usagePercentage": 200, "namespace": "default" }
+},
+"counts": { "soql": 95, "dml": 8, "callouts": 0, "exceptionsThrown": 1, "fatalErrors": 2, "userDebug": 25 }
+```
+
+To list failed logs:
+
+```bash
+apex-log-parser -f logs/*.log --type FATAL_ERROR | jq -c 'select(.summary.outcome == "fatal") | {source: .summary.source, errors: .summary.errors}'
+```
+
 ### Filtering Events
 
 Use CLI filters for common event filtering while keeping the transaction `summary` in the output.
