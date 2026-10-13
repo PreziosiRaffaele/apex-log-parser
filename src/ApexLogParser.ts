@@ -1,4 +1,4 @@
-import { removeTrailingNewlines, sanitizeString, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
+import { removeTrailingNewlines, sanitizeString, decodeEscapedPipes, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
 import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType, LimitScope } from './types.js';
 
@@ -510,7 +510,7 @@ export class ApexLogParser {
             type: 'USER_DEBUG',
             lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
             debugLevel: getPipeField(eventPayload, 1),
-            message: levelEnd === -1 ? '' : eventPayload.slice(levelEnd + 1).replace(/[\r\n]+$/, ''),
+            message: levelEnd === -1 ? '' : decodeEscapedPipes(eventPayload.slice(levelEnd + 1).replace(/[\r\n]+$/, '')),
             timeStart: timestamp,
         };
 

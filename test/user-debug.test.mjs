@@ -61,6 +61,21 @@ test('USER_DEBUG message preserves pipe characters', () => {
     assert.equal(event.message, 'MyClass.method > a|b|c (cpu:1.507, heap:262.579)');
 });
 
+test('USER_DEBUG message decodes pipes that Salesforce escapes as &#124;', () => {
+    const escapedLog = [
+        '64.0 APEX_CODE,FINEST;APEX_PROFILING,INFO',
+        '09:00:00.0 (1000000)|EXECUTION_STARTED',
+        '09:00:00.0 (2000000)|USER_DEBUG|[3]|INFO|LogProbe.load start &#124; pipes &#124; inside',
+        '09:00:00.0 (3000000)|USER_DEBUG|[8]|WARN|multi-line debug',
+        'third &#124; line',
+        '09:00:00.0 (4000000)|EXECUTION_FINISHED',
+    ].join('\n');
+    const events = parseOutput(runCli(['--type', 'USER_DEBUG'], escapedLog)).events;
+
+    assert.equal(events[0].message, 'LogProbe.load start | pipes | inside');
+    assert.equal(events[1].message, 'multi-line debug\nthird | line');
+});
+
 test('USER_DEBUG message preserves continuation lines and trims trailing newlines', () => {
     const event = userDebugEvents()[2];
 

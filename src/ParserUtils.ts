@@ -106,6 +106,14 @@ export function removeTrailingNewlines(str: string): string {
     return str.replace(/\n+$/, '').replace(/\r+$/, '');
 }
 
+/**
+ * Salesforce writes '|' inside logged values as '&#124;' so it never collides with the field separator.
+ * '&' itself is not escaped, so a literal '&#124;' in the original text is also decoded to '|'.
+ */
+export function decodeEscapedPipes(str: string): string {
+    return str.replace(/&#124;/g, '|');
+}
+
 export function sanitizeString(str: string): string {
     return str.replace(/\n/g, ' ').replace(/\r/g, ' ').trim();
 }
