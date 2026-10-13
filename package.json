@@ -17,7 +17,8 @@
         "lint:fix": "eslint . --fix"
     },
     "files": [
-        "dist/**/*"
+        "dist/**/*",
+        "skills/**/*"
     ],
     "devDependencies": {
         "@eslint/js": "^10.0.1",

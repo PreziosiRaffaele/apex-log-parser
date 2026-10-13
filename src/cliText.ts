@@ -90,6 +90,8 @@ Options:
       Number of hotspots to report per log. Defaults to 20. Requires --hotspots.
   --schema
       Print the JSON output schema and field reference.
+  --skill
+      Print the packaged agent skill (SKILL.md): a log triage workflow for AI agents.
   -v, --version
       Print the parser version.
   -h, --help
@@ -137,6 +139,9 @@ Examples:
 
   Print single-line JSON (NDJSON for multiple logs):
     ... | apex-log-parser --compact
+
+  Install the agent skill for Claude Code:
+    mkdir -p .claude/skills/apex-log-parser && apex-log-parser --skill > .claude/skills/apex-log-parser/SKILL.md
 
   Find the operations that actually consume the time:
     ... | apex-log-parser --hotspots --top 10
