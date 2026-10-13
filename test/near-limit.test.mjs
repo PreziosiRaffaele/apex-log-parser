@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -65,6 +67,13 @@ const standaloneTestingLimitsLog = [
     '09:00:00.0 (10000000)|CODE_UNIT_FINISHED|Class.Test.standaloneMarker()',
     '09:00:00.0 (11000000)|EXECUTION_FINISHED',
 ].join('\n');
+
+const tempDir = mkdtempSync(join(tmpdir(), 'apex-log-parser-near-limit-'));
+const belowThresholdPath = join(tempDir, 'below-threshold.log');
+const nearLimitPath = join(tempDir, 'near-limit.log');
+writeFileSync(belowThresholdPath, belowThresholdLog);
+writeFileSync(nearLimitPath, nearLimitLog);
+test.after(() => rmSync(tempDir, { recursive: true, force: true }));
 
 function runCli(args, input = nearLimitLog) {
     return spawnSync(process.execPath, [cliPath, ...args], {
@@ -157,12 +166,25 @@ test('--exclude-limit wins over defaults and threshold overrides', () => {
     );
 });
 
-test('--near-limit omits logs with no matches', () => {
-    const result = runCli(['--near-limit'], belowThresholdLog);
+test('--near-limit emits an empty report for logs with no matches', () => {
+    const report = parseReport(runCli(['--near-limit'], belowThresholdLog));
 
+    assert.equal(report.summary.source, 'stdin: 1');
+    assert.deepEqual(report.nearLimitTransactions, []);
+});
+
+test('--near-limit emits one report per file in input order, including empty ones', () => {
+    const result = runCli(['--near-limit', belowThresholdPath, nearLimitPath], '');
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, '');
-    assert.equal(result.stdout.trim(), '');
+    const reports = result.stdout
+        .split(/\n(?=\{)/)
+        .filter(chunk => chunk.trim().length > 0)
+        .map(chunk => JSON.parse(chunk));
+
+    assert.deepEqual(reports.map(report => report.summary.source), ['below-threshold.log', 'near-limit.log']);
+    assert.deepEqual(reports[0].nearLimitTransactions, []);
+    assert.ok(reports[1].nearLimitTransactions.length > 0);
 });
 
 test('--near-limit rejects invalid limit names and percentages', () => {

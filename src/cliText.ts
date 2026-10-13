@@ -26,7 +26,7 @@ Notes:
   - --include-context adds compact execution ancestry to events
   - --near-limit reports transactions with governor-limit pressure instead of events
   - Event filters preserve summary and filter only events, not tree
-  - Logs with no matching events are omitted when filters are active
+  - Every parsed log is emitted; logs with no matching events have events: []
 
 Options:
   -f <file1.log> [file2.log ...]
@@ -162,8 +162,8 @@ JSON output schema:
       Included only when using --include-tree. Rendered as human-readable text
       instead of JSON when using --tree.
     nearLimitTransactions[]
-      Present instead of events when using --near-limit. Logs with no matches
-      are omitted. Each transaction includes executionId, label, timeStart,
+      Present instead of events when using --near-limit. Empty ([]) for logs
+      with no matches. Each transaction includes executionId, label, timeStart,
       timeEnd, durationMs, and matches[].
     nearLimitTransactions[].matches[]
       Aggregated governor-limit pressure by executionId, scope, namespace, and
@@ -182,5 +182,5 @@ Notes:
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
-  - logs with no matching events are omitted when filters are active
+  - every parsed log is emitted; events is [] when no events match the filters
 `.trim();
