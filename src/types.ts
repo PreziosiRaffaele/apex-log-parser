@@ -72,6 +72,7 @@ export interface TreeNode {
     timeStart?: number;
     timeEnd?: number;
     durationMs?: number;
+    selfMs?: number;
     rowsReturned?: number;
     children?: TreeNode[];
 }
@@ -180,4 +181,28 @@ export interface NearLimitTransaction {
 export interface NearLimitReport {
     summary: ParsedLogSummary;
     nearLimitTransactions: NearLimitTransaction[];
+}
+
+export interface HotspotSlowest {
+    id: string;
+    durationMs?: number;
+    selfMs?: number;
+    lineNumber?: number;
+    context?: EventContext;
+}
+
+/** Events grouped by (type, name). inclusiveMs counts only outermost occurrences, so recursion is not double-counted. */
+export interface Hotspot {
+    type: NodeType;
+    name?: string;
+    count: number;
+    totalSelfMs: number;
+    maxSelfMs: number;
+    inclusiveMs: number;
+    slowest: HotspotSlowest;
+}
+
+export interface HotspotReport {
+    summary: ParsedLogSummary;
+    hotspots: Hotspot[];
 }

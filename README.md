@@ -223,6 +223,36 @@ apex-log-parser -f mylog.log --near-limit --exclude-limit QUEUEABLE_JOBS
 
 `--near-limit` cannot be combined with `--tree`, `--include-tree`, `--include-context`, `--type`, `--exclude-type`, or `--min-duration-ms`.
 
+### Hotspot Report
+
+`durationMs` is inclusive: a trigger handler that calls a slow DML reports the DML's time too, so filtering on `--min-duration-ms` mostly returns the ancestor chain of a few slow operations. Every event with a duration also carries `selfMs`, its exclusive time (`durationMs` minus the direct children's `durationMs`, clamped at 0).
+
+Use `--hotspots` to rank operations by self time and pinpoint where the time actually goes:
+
+```bash
+apex-log-parser -f mylog.log --hotspots --top 10
+```
+
+This mode outputs `summary` and `hotspots` instead of `events`. Events are grouped by `type` and `name` (`DML` by operation and object, ignoring row count; `CALLOUT` by request); `EXECUTION`, `LIMIT`, and point-in-time events (`EXCEPTION_THROWN`, `FATAL_ERROR`, `USER_DEBUG`) are ignored. Each hotspot reports:
+
+- `count`, `totalSelfMs`, and `maxSelfMs` across occurrences
+- `inclusiveMs`: total `durationMs` of outermost occurrences only, so recursive calls are not double-counted
+- `slowest`: the occurrence with the highest `selfMs`, with `id`, `durationMs`, `selfMs`, `lineNumber`, and its ancestor `context.stack` (same frames as `--include-context`)
+
+```json
+{
+  "type": "SOQL",
+  "name": "Query on contact",
+  "count": 12,
+  "totalSelfMs": 437.047,
+  "maxSelfMs": 66.139,
+  "inclusiveMs": 437.047,
+  "slowest": { "id": "01234", "durationMs": 66.139, "selfMs": 66.139, "lineNumber": 42, "context": { "stack": [] } }
+}
+```
+
+Hotspots are sorted by `totalSelfMs` descending, and `--top` (default 20) caps how many are reported per log. `--type` and `--exclude-type` restrict which events are grouped. `--hotspots` cannot be combined with `--tree`, `--include-tree`, `--near-limit`, or `--min-duration-ms`, and `--top` requires `--hotspots`.
+
 ### Event Context
 
 Use `--include-context` when filtered events need to show where they happened in the execution stack.
