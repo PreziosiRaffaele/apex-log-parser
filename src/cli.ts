@@ -74,6 +74,7 @@ const EVENT_TYPES = new Set<NodeType>([
     'MANAGED_PKG',
     'CALLOUT',
     'LIMIT',
+    'USER_DEBUG',
 ]);
 
 /**
@@ -83,10 +84,11 @@ const EVENT_TYPES = new Set<NodeType>([
  */
 function parseArgs(args: string[]): ParsedArgs {
     try {
-        const { values } = parseNodeArgs({
+        const { values, tokens } = parseNodeArgs({
             args,
             allowPositionals: true,
             strict: true,
+            tokens: true,
             options: {
                 help: { type: 'boolean', short: 'h' },
                 version: { type: 'boolean', short: 'v' },
@@ -149,18 +151,12 @@ function parseArgs(args: string[]): ParsedArgs {
             }
         }
 
-        const files: string[] = [];
-        for (let i = 0; i < args.length; i++) {
-            const arg = args[i];
-            if (arg !== '-f') continue;
-
-            for (let j = i + 1; j < args.length; j++) {
-                const fileArg = args[j];
-                if (fileArg.startsWith('-')) break;
-                files.push(fileArg);
-                i = j;
-            }
-        }
+        // -f values and positionals are both input files, kept in command-line order.
+        const files = tokens.flatMap((token) => {
+            if (token.kind === 'positional') return [token.value];
+            if (token.kind === 'option' && token.name === 'f' && token.value !== undefined) return [token.value];
+            return [];
+        });
 
         return {
             files,
@@ -462,9 +458,19 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
         crlfDelay: Infinity,
     });
 
+    let logCount = 0;
+    let successfulParses = 0;
     const splitter = new ApexLogSplitter((logData: LogData) => {
-        const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number, { includeContext: options.includeContext });
-        outputResult(apexLog, options);
+        logCount++;
+        const source = 'stdin: ' + logData.number;
+        try {
+            const apexLog = parser.parse(logData.log, source, { includeContext: options.includeContext });
+            outputResult(apexLog, options);
+            successfulParses++;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`Error parsing ${source}: ${message}`);
+        }
     });
 
     rl.on('line', (line) => {
@@ -480,7 +486,17 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
     rl.on('close', async () => {
         splitter.finalize();
         await new Promise(resolve => process.stdout.write('', resolve));
-        process.exit(0);
+
+        if (logCount === 0) {
+            console.error('No Apex log found in stdin. Expected a log header such as "64.0 APEX_CODE,FINEST;...".');
+            process.exit(1);
+        } else if (successfulParses === 0) {
+            process.exit(1); // Total failure
+        } else if (successfulParses < logCount) {
+            process.exit(2); // Partial success
+        } else {
+            process.exit(0); // Total success
+        }
     });
 }
 
@@ -577,7 +593,8 @@ async function main(): Promise<void> {
 
     if (files.length === 0) {
         if (process.stdin.isTTY) {
-            process.exit(0);
+            console.error(HELP_TEXT);
+            process.exit(1);
         }
         if (inputFormat === 'ndjson') {
             await processNdjsonStdin(parser, outputOptions);

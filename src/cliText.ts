@@ -1,6 +1,7 @@
 export const HELP_TEXT = `
 Usage:
   apex-log-parser [options]
+  apex-log-parser [options] <file1.log> [file2.log ...]
   apex-log-parser -f <file1.log> [file2.log ...]
   sf debug retrieve ... | apex-log-parser [options]
 
@@ -8,8 +9,8 @@ Description:
   Parse Salesforce Apex debug logs into structured JSON or a human-readable tree.
 
 Input:
-  - Reads from stdin when -f is not provided
-  - Accepts one or more .log files with -f
+  - Reads from stdin when no files are provided
+  - Accepts one or more .log files as arguments or with -f
   - Supports one log or multiple logs in a single run
   - Emits one parsed result per input log
   - When parsing multiple logs, use jq -s to collect results into an array
@@ -30,6 +31,7 @@ Notes:
 Options:
   -f <file1.log> [file2.log ...]
       Parse one or more Apex log files.
+      Equivalent to passing the files as arguments without -f.
       Files must use the .log extension.
   --tree
       Print a human-readable execution tree instead of JSON.
@@ -96,6 +98,9 @@ Examples:
   Show only slow DML events:
     ... | apex-log-parser --type DML --min-duration-ms 1000
 
+  Show System.debug output:
+    ... | apex-log-parser --type USER_DEBUG
+
   Show SOQL events with their execution context:
     ... | apex-log-parser --type SOQL --include-context
 
@@ -141,6 +146,8 @@ JSON output schema:
       timeEnd       Raw event end timestamp in nanoseconds for scoped events
       durationMs    Computed event duration in milliseconds rounded to 3 decimals
       exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
+      debugLevel    System.debug logging level such as DEBUG, INFO, or WARN for USER_DEBUG events
+      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines
       limits        Governor limit usage object for LIMIT events
       request       Outbound request text for CALLOUT events
       response      Inbound response text for CALLOUT events
@@ -166,7 +173,7 @@ JSON output schema:
 Event types:
   CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
   EXECUTION, FLOW, FLOW_ELEMENT, FLOW_START_INTERVIEW, FLOW_BULK_ELEMENT,
-  MANAGED_PKG, CALLOUT, LIMIT
+  MANAGED_PKG, CALLOUT, LIMIT, USER_DEBUG
 
 Notes:
   - events is the best starting point for jq filtering, grouping, and aggregation

@@ -37,7 +37,8 @@ export type NodeType =
   | 'FLOW_BULK_ELEMENT'
   | 'MANAGED_PKG'
   | 'CALLOUT'
-  | "LIMIT";
+  | 'LIMIT'
+  | 'USER_DEBUG';
 
 export type ParseOptions = {
     includeContext?: boolean;
@@ -59,6 +60,8 @@ export interface TreeNode {
     namedCredentialResponseDetails?: string;
     responseDetails?: string;
     exceptionType?: string;
+    debugLevel?: string;
+    message?: string;
     name?: string;
     method?: string;
     lineNumber?: number;

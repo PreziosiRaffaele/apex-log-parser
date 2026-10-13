@@ -25,6 +25,12 @@ npm install -g apex-log-parser
 To parse a single log file:
 
 ```bash
+apex-log-parser mylog.log
+```
+
+Files can be passed as arguments or with `-f`; both forms are equivalent and can be combined:
+
+```bash
 apex-log-parser -f mylog.log
 ```
 
@@ -136,6 +142,12 @@ To get all `DML` events that took longer than 1 second:
 
 ```bash
 sf apex get log --number 25 -o AliasOrg | apex-log-parser --type DML --min-duration-ms 1000
+```
+
+To get all `System.debug` output (`USER_DEBUG` events):
+
+```bash
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser --type USER_DEBUG
 ```
 
 To exclude `LIMIT` events:
@@ -269,6 +281,16 @@ To include the recursive tree in JSON output, use `--include-tree`:
 apex-log-parser -f mylog.log --include-tree
 ```
 
+### Exit Codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | Every input log was parsed successfully |
+| `1` | Nothing was parsed: invalid options, no input files found, every log failed to parse, raw `stdin` contained no Apex log header, invalid NDJSON input, or no input was provided on an interactive terminal (help is printed to `stderr`) |
+| `2` | Partial success: at least one log was parsed, but another file or raw `stdin` log could not be read or parsed |
+
+Errors are reported on `stderr`; `stdout` only carries parsed output.
+
 ## Event Types
 
 The `type` property in `events` corresponds to the kind of parsed log event. You can use these values with `--type`, `--exclude-type`, or tools like `jq`:
@@ -289,5 +311,6 @@ The `type` property in `events` corresponds to the kind of parsed log event. You
 *   `MANAGED_PKG`: A managed package execution.
 *   `CALLOUT`: A callout to an external service.
 *   `LIMIT`: A limit usage warning.
+*   `USER_DEBUG`: A `System.debug` statement. Includes `lineNumber`, `debugLevel` (e.g. `DEBUG`, `WARN`), and the full `message` text with `|` characters and newlines preserved.
 
 When using `--include-tree`, the recursive tree also contains a synthetic `ROOT` node. `ROOT` is not present in `events` and is not accepted by event filter options.

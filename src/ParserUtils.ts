@@ -45,31 +45,42 @@ export function extractLineNumber(lineNumberPart: string): number {
     return Number(lineNumberText);
 }
 
+const FROM_CLAUSE = /\bfrom\s+(\w+)/iy;
+
 /**
- * Extract the sObject name targeted by a SOQL query.
- * Attempts to match the first token after the FROM clause.
+ * Extract the lowercased sObject name following the top-level FROM clause.
+ * FROM keywords inside parenthesized subqueries or string literals are ignored.
+ * Returns '' when the query has no top-level FROM.
  */
 export function extractObject(soqlString: string): string {
     if (!soqlString || typeof soqlString !== 'string') {
         return '';
     }
 
-    let cleanQuery = soqlString.trim();
+    let depth = 0;
+    let inString = false;
+    for (let i = 0; i < soqlString.length; i++) {
+        const char = soqlString[i];
+        if (inString) {
+            if (char === '\\') i++;
+            else if (char === "'") inString = false;
+            continue;
+        }
 
-    // Remove everything from WHERE clause onwards (case-insensitive)
-    const whereIndex = cleanQuery.search(/\bwhere\b/i);
-    if (whereIndex !== -1) {
-        cleanQuery = cleanQuery.substring(0, whereIndex).trim();
+        if (char === "'") {
+            inString = true;
+        } else if (char === '(') {
+            depth++;
+        } else if (char === ')') {
+            depth = Math.max(0, depth - 1);
+        } else if (depth === 0 && (char === 'f' || char === 'F')) {
+            FROM_CLAUSE.lastIndex = i;
+            const match = FROM_CLAUSE.exec(soqlString);
+            if (match) return match[1].toLowerCase();
+        }
     }
 
-    // Find the last occurrence of FROM (case-insensitive)
-    const lastFromMatch = cleanQuery.match(/.*\bfrom\s+/i);
-    if (!lastFromMatch) {
-        return '';
-    }
-
-    // Extract everything after the last FROM and trim
-    return cleanQuery.substring(lastFromMatch[0].length).trim().toLowerCase();
+    return '';
 }
 
 
@@ -93,6 +104,14 @@ export function extractRows(rowsString: string): number {
 
 export function removeTrailingNewlines(str: string): string {
     return str.replace(/\n+$/, '').replace(/\r+$/, '');
+}
+
+/**
+ * Salesforce writes '|' inside logged values as '&#124;' so it never collides with the field separator.
+ * '&' itself is not escaped, so a literal '&#124;' in the original text is also decoded to '|'.
+ */
+export function decodeEscapedPipes(str: string): string {
+    return str.replace(/&#124;/g, '|');
 }
 
 export function sanitizeString(str: string): string {
