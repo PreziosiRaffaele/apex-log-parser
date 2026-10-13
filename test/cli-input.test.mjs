@@ -139,3 +139,15 @@ test('stdin strips nested ANSI escapes emitted by sf apex get log', () => {
     assert.equal(fatal.exceptionType, 'System.QueryException');
     assert.equal(fatal.name, 'System.QueryException: List has no rows for assignment to SObject');
 });
+
+test('stdin strips deeply nested ANSI escapes in linear time', () => {
+    const nested = '\x1b['.repeat(20000) + '94m' + '31m'.repeat(19999);
+    const lines = sampleLog.split('\n');
+    lines.splice(5, 0, `09:00:00.0 (5500000)|USER_DEBUG|[1]|DEBUG|${nested}`);
+    const started = Date.now();
+    const result = spawnSync(process.execPath, [cliPath], { input: lines.join('\n'), encoding: 'utf-8' });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+    assert.doesNotMatch(result.stdout, /\\u001b|\\u009b/);
+});
