@@ -2,6 +2,7 @@ import ansiRegex from 'ansi-regex';
 import { promises as fs } from 'fs';
 const regex = ansiRegex();
 const MAX_ANSI_PASSES = 5;
+// eslint-disable-next-line no-control-regex -- intentional ESC/CSI match
 const ANSI_INTRODUCERS = /[\u001B\u009B]/g;
 
 export function normalizeLogInput(logText: string): string {

@@ -6,6 +6,7 @@ import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
 import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
+import { buildHotspotReport, DEFAULT_HOTSPOT_TOP } from './HotspotReport.js';
 import { buildNearLimitReport, createDefaultNearLimitThresholds, isLimitType, LIMIT_TYPES, type NearLimitOptions } from './NearLimitReport.js';
 import { promises as fs, readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,8 @@ type ParsedArgs = {
     filters: EventFilters;
     nearLimit: boolean;
     nearLimitOptions: NearLimitOptions;
+    hotspots: boolean;
+    top: number;
 }
 
 type EventFilters = {
@@ -39,6 +42,8 @@ type CliOutputOptions = {
     filters: EventFilters;
     nearLimit: boolean;
     nearLimitOptions: NearLimitOptions;
+    hotspots: boolean;
+    top: number;
 };
 
 type CliJsonOutput = {
@@ -103,6 +108,8 @@ function parseArgs(args: string[]): ParsedArgs {
                 'near-limit': { type: 'boolean' },
                 'limit-threshold': { type: 'string', multiple: true },
                 'exclude-limit': { type: 'string', multiple: true },
+                hotspots: { type: 'boolean' },
+                top: { type: 'string' },
                 f: { type: 'string', multiple: true, short: 'f' },
             },
         });
@@ -130,6 +137,14 @@ function parseArgs(args: string[]): ParsedArgs {
         }
 
         const nearLimitOptions = parseNearLimitOptions(values['limit-threshold'], values['exclude-limit']);
+        const hotspots = values.hotspots ?? false;
+
+        if (!hotspots && values.top !== undefined) {
+            console.error('Cannot use --top without --hotspots.');
+            process.exit(1);
+        }
+
+        const top = parseTop(values.top);
 
         if (tree && includeTree) {
             console.error('Cannot combine --tree with --include-tree.');
@@ -142,6 +157,13 @@ function parseArgs(args: string[]): ParsedArgs {
         if (hasFilters && tree) {
             console.error('Cannot combine event filters with --tree.');
             process.exit(1);
+        }
+        if (hotspots) {
+            const incompatibleHotspotFlags = getHotspotIncompatibleFlags(tree, includeTree, nearLimit, filters);
+            if (incompatibleHotspotFlags.length > 0) {
+                console.error(`Cannot combine --hotspots with ${incompatibleHotspotFlags.join(', ')}.`);
+                process.exit(1);
+            }
         }
         if (nearLimit) {
             const incompatibleNearLimitFlags = getNearLimitIncompatibleFlags(tree, includeTree, includeContext, filters);
@@ -167,6 +189,8 @@ function parseArgs(args: string[]): ParsedArgs {
             filters,
             nearLimit,
             nearLimitOptions,
+            hotspots,
+            top,
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -240,6 +264,34 @@ function parseLimitType(rawType: string, optionName: string): LimitType {
     }
 
     return normalizedType;
+}
+
+function parseTop(value: string | undefined): number {
+    if (value === undefined) return DEFAULT_HOTSPOT_TOP;
+
+    const top = Number(value);
+    if (!/^\d+$/.test(value) || top < 1) {
+        console.error('Invalid value for --top. Expected a positive integer.');
+        process.exit(1);
+    }
+
+    return top;
+}
+
+function getHotspotIncompatibleFlags(
+    tree: boolean,
+    includeTree: boolean,
+    nearLimit: boolean,
+    filters: EventFilters,
+): string[] {
+    const incompatibleFlags: string[] = [];
+
+    if (tree) incompatibleFlags.push('--tree');
+    if (includeTree) incompatibleFlags.push('--include-tree');
+    if (nearLimit) incompatibleFlags.push('--near-limit');
+    if (filters.minDurationMs !== undefined) incompatibleFlags.push('--min-duration-ms');
+
+    return incompatibleFlags;
 }
 
 function getNearLimitIncompatibleFlags(
@@ -331,7 +383,7 @@ function showSchema(): never {
 async function parseFile(parser: ApexLogParser, filePath: string, options: CliOutputOptions): Promise<{ success: true; data: ParsedLog } | { success: false; error: string }> {
     try {
         const logContent = await fs.readFile(filePath, 'utf-8');
-        const apexLog = parser.parse(logContent, path.basename(filePath), { includeContext: options.includeContext });
+        const apexLog = parser.parse(logContent, path.basename(filePath), { includeContext: options.includeContext || options.hotspots });
         return { success: true, data: apexLog };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -363,6 +415,10 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
 function outputResult(data: ParsedLog, options: CliOutputOptions): void {
     if (options.tree) {
         console.log(new TreeRenderer().renderTree(data));
+    } else if (options.hotspots) {
+        const output = buildHotspotReport(data.summary, filterEvents(data.events, options.filters), options.top);
+        if (!output) return;
+        console.log(JSON.stringify(output, null, 2));
     } else if (options.nearLimit) {
         const output = buildNearLimitReport(data, options.nearLimitOptions);
         if (!output) return;
@@ -464,7 +520,7 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
         logCount++;
         const source = 'stdin: ' + logData.number;
         try {
-            const apexLog = parser.parse(logData.log, source, { includeContext: options.includeContext });
+            const apexLog = parser.parse(logData.log, source, { includeContext: options.includeContext || options.hotspots });
             outputResult(apexLog, options);
             successfulParses++;
         } catch (err) {
@@ -560,7 +616,7 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
             }
 
             const { Id, Log, Request, Operation, LastModifiedDate, Status } = parseNdjsonLine(line, lineNumber);
-            const apexLog = parser.parse(Log, Id, { includeContext: options.includeContext });
+            const apexLog = parser.parse(Log, Id, { includeContext: options.includeContext || options.hotspots });
             apexLog.summary.request = Request;
             apexLog.summary.operation = Operation;
             apexLog.summary.lastModifiedDate = LastModifiedDate;
@@ -579,7 +635,7 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions } = parseArgs(args);
+    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions, hotspots, top } = parseArgs(args);
     const outputOptions: CliOutputOptions = {
         tree,
         includeTree,
@@ -587,6 +643,8 @@ async function main(): Promise<void> {
         filters,
         nearLimit,
         nearLimitOptions,
+        hotspots,
+        top,
     };
 
     const parser = new ApexLogParser();

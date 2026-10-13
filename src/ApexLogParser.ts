@@ -71,6 +71,12 @@ function getColonValue(field: string): string | undefined {
         : field.slice(colonIndex + 1, nextColonIndex);
 }
 
+/** Exclusive time: durationMs minus direct children's durationMs, clamped at 0. Children are always closed before their parent. */
+function computeSelfMs(node: TreeNode): number {
+    const childrenMs = node.children?.reduce((acc, child) => acc + (child.durationMs ?? 0), 0) ?? 0;
+    const selfMs = Math.max(0, (node.durationMs ?? 0) - childrenMs);
+    return Math.round((selfMs + Number.EPSILON) * 1000) / 1000;
+}
 
 export class ApexLogParser {
     private summary: ParserSummaryState = createEmptySummaryState();
@@ -699,6 +705,7 @@ export class ApexLogParser {
             const rawDuration = node.timeStart ? convertNsToMs(timestamp - node.timeStart) : 0;
             // Round duration to 3 decimal places
             node.durationMs = Math.round((rawDuration + Number.EPSILON) * 1000) / 1000;
+            node.selfMs = computeSelfMs(node);
         }
         this.currentNode = this.nodeStack[this.nodeStack.length - 1];
     }
