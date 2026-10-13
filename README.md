@@ -144,6 +144,12 @@ To get all `DML` events that took longer than 1 second:
 sf apex get log --number 25 -o AliasOrg | apex-log-parser --type DML --min-duration-ms 1000
 ```
 
+To get all `System.debug` output (`USER_DEBUG` events):
+
+```bash
+sf apex get log -i LOG_ID -o AliasOrg | apex-log-parser --type USER_DEBUG
+```
+
 To exclude `LIMIT` events:
 
 ```bash
@@ -305,5 +311,6 @@ The `type` property in `events` corresponds to the kind of parsed log event. You
 *   `MANAGED_PKG`: A managed package execution.
 *   `CALLOUT`: A callout to an external service.
 *   `LIMIT`: A limit usage warning.
+*   `USER_DEBUG`: A `System.debug` statement. Includes `lineNumber`, `debugLevel` (e.g. `DEBUG`, `WARN`), and the full `message` text with `|` characters and newlines preserved.
 
 When using `--include-tree`, the recursive tree also contains a synthetic `ROOT` node. `ROOT` is not present in `events` and is not accepted by event filter options.

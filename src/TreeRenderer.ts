@@ -1,4 +1,5 @@
 import { TreeNode, ParsedLog } from './types.js'
+import { sanitizeString } from './ParserUtils.js'
 
 export class TreeRenderer {
     constructor() { }
@@ -28,7 +29,7 @@ export class TreeRenderer {
             durationInfo += `] ${this.createDurationBar(node.durationMs, totalDuration)}`;
         }
 
-        const displayName = node.name ?? (node.type === 'LIMIT' ? node.namespace : undefined);
+        const displayName = node.name ?? this.getFallbackDisplayName(node);
 
         if (displayName) {
             const remainingWidth = availableWidth - line.length - durationInfo.length - 1; // -1 for space
@@ -49,6 +50,12 @@ export class TreeRenderer {
         line += durationInfo;
 
         return line;
+    }
+
+    private getFallbackDisplayName(node: TreeNode): string | undefined {
+        if (node.type === 'LIMIT') return node.namespace;
+        if (node.type === 'USER_DEBUG' && node.message) return sanitizeString(node.message);
+        return undefined;
     }
 
     /**

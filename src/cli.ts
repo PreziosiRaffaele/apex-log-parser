@@ -74,6 +74,7 @@ const EVENT_TYPES = new Set<NodeType>([
     'MANAGED_PKG',
     'CALLOUT',
     'LIMIT',
+    'USER_DEBUG',
 ]);
 
 /**

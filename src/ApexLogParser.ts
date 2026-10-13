@@ -283,6 +283,10 @@ export class ApexLogParser {
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleExceptionThrown(timestamp, eventPayload);
                 break;
+            case 'USER_DEBUG':
+                timestamp = timestamp ?? extractTimestamp(executionTimePart);
+                this.handleUserDebug(timestamp, eventPayload);
+                break;
             case 'ENTERING_MANAGED_PKG':
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleEnteringManagedPkg(timestamp, eventPayload);
@@ -493,6 +497,23 @@ export class ApexLogParser {
         };
 
         // Push as an instantaneous event and immediately close it
+        this.pushNode(node);
+        this.closeNode(timestamp);
+    }
+
+    private handleUserDebug(timestamp: number, eventPayload: string): void {
+        // Payload: [line]|LEVEL|message. The message may contain '|' and newlines, so keep everything after the level.
+        const levelEnd = eventPayload.indexOf('|', eventPayload.indexOf('|') + 1);
+        const node: TreeNode = {
+            id: this.idGenerator.next(),
+            parentId: this.currentNode.id,
+            type: 'USER_DEBUG',
+            lineNumber: extractLineNumber(getPipeField(eventPayload, 0)),
+            debugLevel: getPipeField(eventPayload, 1),
+            message: levelEnd === -1 ? '' : eventPayload.slice(levelEnd + 1).replace(/[\r\n]+$/, ''),
+            timeStart: timestamp,
+        };
+
         this.pushNode(node);
         this.closeNode(timestamp);
     }

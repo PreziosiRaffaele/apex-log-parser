@@ -98,6 +98,9 @@ Examples:
   Show only slow DML events:
     ... | apex-log-parser --type DML --min-duration-ms 1000
 
+  Show System.debug output:
+    ... | apex-log-parser --type USER_DEBUG
+
   Show SOQL events with their execution context:
     ... | apex-log-parser --type SOQL --include-context
 
@@ -143,6 +146,8 @@ JSON output schema:
       timeEnd       Raw event end timestamp in nanoseconds for scoped events
       durationMs    Computed event duration in milliseconds rounded to 3 decimals
       exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
+      debugLevel    System.debug logging level such as DEBUG, INFO, or WARN for USER_DEBUG events
+      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines
       limits        Governor limit usage object for LIMIT events
       request       Outbound request text for CALLOUT events
       response      Inbound response text for CALLOUT events
@@ -168,7 +173,7 @@ JSON output schema:
 Event types:
   CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,
   EXECUTION, FLOW, FLOW_ELEMENT, FLOW_START_INTERVIEW, FLOW_BULK_ELEMENT,
-  MANAGED_PKG, CALLOUT, LIMIT
+  MANAGED_PKG, CALLOUT, LIMIT, USER_DEBUG
 
 Notes:
   - events is the best starting point for jq filtering, grouping, and aggregation
