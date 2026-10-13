@@ -25,6 +25,12 @@ npm install -g apex-log-parser
 To parse a single log file:
 
 ```bash
+apex-log-parser mylog.log
+```
+
+Files can be passed as arguments or with `-f`; both forms are equivalent and can be combined:
+
+```bash
 apex-log-parser -f mylog.log
 ```
 

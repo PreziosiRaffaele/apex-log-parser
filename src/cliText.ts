@@ -1,6 +1,7 @@
 export const HELP_TEXT = `
 Usage:
   apex-log-parser [options]
+  apex-log-parser [options] <file1.log> [file2.log ...]
   apex-log-parser -f <file1.log> [file2.log ...]
   sf debug retrieve ... | apex-log-parser [options]
 
@@ -8,8 +9,8 @@ Description:
   Parse Salesforce Apex debug logs into structured JSON or a human-readable tree.
 
 Input:
-  - Reads from stdin when -f is not provided
-  - Accepts one or more .log files with -f
+  - Reads from stdin when no files are provided
+  - Accepts one or more .log files as arguments or with -f
   - Supports one log or multiple logs in a single run
   - Emits one parsed result per input log
   - When parsing multiple logs, use jq -s to collect results into an array
@@ -30,6 +31,7 @@ Notes:
 Options:
   -f <file1.log> [file2.log ...]
       Parse one or more Apex log files.
+      Equivalent to passing the files as arguments without -f.
       Files must use the .log extension.
   --tree
       Print a human-readable execution tree instead of JSON.

@@ -83,10 +83,11 @@ const EVENT_TYPES = new Set<NodeType>([
  */
 function parseArgs(args: string[]): ParsedArgs {
     try {
-        const { values } = parseNodeArgs({
+        const { values, tokens } = parseNodeArgs({
             args,
             allowPositionals: true,
             strict: true,
+            tokens: true,
             options: {
                 help: { type: 'boolean', short: 'h' },
                 version: { type: 'boolean', short: 'v' },
@@ -149,18 +150,12 @@ function parseArgs(args: string[]): ParsedArgs {
             }
         }
 
-        const files: string[] = [];
-        for (let i = 0; i < args.length; i++) {
-            const arg = args[i];
-            if (arg !== '-f') continue;
-
-            for (let j = i + 1; j < args.length; j++) {
-                const fileArg = args[j];
-                if (fileArg.startsWith('-')) break;
-                files.push(fileArg);
-                i = j;
-            }
-        }
+        // -f values and positionals are both input files, kept in command-line order.
+        const files = tokens.flatMap((token) => {
+            if (token.kind === 'positional') return [token.value];
+            if (token.kind === 'option' && token.name === 'f' && token.value !== undefined) return [token.value];
+            return [];
+        });
 
         return {
             files,
