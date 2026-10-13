@@ -390,6 +390,22 @@ ROOT(00001)
 
 Both options can be combined. With `--include-tree`, `--min-duration-ms` keeps its usual meaning and filters only `events`.
 
+### Agent Skill
+
+The package ships an agent skill at `skills/apex-log-parser/SKILL.md`. It gives AI agents a triage workflow:
+
+- read the summary triage fields
+- check `--near-limit`
+- find slow operations with `--hotspots`
+- find repeated queries
+
+It also has `jq` recipes and guidance on keeping output small. Print it with `--skill`, for example to install it for Claude Code:
+
+```bash
+mkdir -p .claude/skills/apex-log-parser
+apex-log-parser --skill > .claude/skills/apex-log-parser/SKILL.md
+```
+
 ### Exit Codes
 
 | Code | Meaning |

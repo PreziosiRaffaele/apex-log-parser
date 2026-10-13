@@ -92,7 +92,7 @@ const EVENT_TYPES = new Set<NodeType>([
  * @param args The command line arguments.
  * @returns The parsed arguments including files and tree flag.
  */
-function parseArgs(args: string[]): ParsedArgs {
+function parseArgs(args: string[]): ParsedArgs | 'skill' {
     try {
         const { values, tokens } = parseNodeArgs({
             args,
@@ -103,6 +103,7 @@ function parseArgs(args: string[]): ParsedArgs {
                 help: { type: 'boolean', short: 'h' },
                 version: { type: 'boolean', short: 'v' },
                 schema: { type: 'boolean' },
+                skill: { type: 'boolean' },
                 tree: { type: 'boolean' },
                 'include-tree': { type: 'boolean' },
                 'include-context': { type: 'boolean' },
@@ -124,6 +125,7 @@ function parseArgs(args: string[]): ParsedArgs {
         if (values.help) showUsage();
         if (values.version) showVersion();
         if (values.schema) showSchema();
+        if (values.skill) return 'skill';
 
         const inputFormatValue = values['input-format'];
         if (inputFormatValue !== undefined && inputFormatValue !== 'raw' && inputFormatValue !== 'ndjson') {
@@ -400,6 +402,20 @@ function showUsage(): never {
     process.exit(0);
 }
 
+async function showSkill(): Promise<never> {
+    const skillPath = path.resolve(__dirname, '..', 'skills', 'apex-log-parser', 'SKILL.md');
+    let content: string;
+    try {
+        content = readFileSync(skillPath, 'utf-8');
+    } catch (error) {
+        console.error(`Error reading agent skill: ${error}`);
+        process.exit(1);
+    }
+    // Exiting before the write callback can truncate output piped to another process.
+    await new Promise(resolve => process.stdout.write(content, resolve));
+    process.exit(0);
+}
+
 function showSchema(): never {
     console.log(SCHEMA_TEXT);
     process.exit(0);
@@ -649,8 +665,12 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
 }
 
 async function main(): Promise<void> {
-    const args = process.argv.slice(2);
-    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions, hotspots, top, maxDepth, compact } = parseArgs(args);
+    const parsedArgs = parseArgs(process.argv.slice(2));
+    if (parsedArgs === 'skill') {
+        await showSkill();
+        return;
+    }
+    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions, hotspots, top, maxDepth, compact } = parsedArgs;
     const outputOptions: CliOutputOptions = {
         tree,
         includeTree,

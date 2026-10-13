@@ -1,0 +1,34 @@
+64.0 APEX_CODE,FINEST;APEX_PROFILING,INFO;DB,INFO
+09:00:00.0 (1000000)|USER_INFO|[EXTERNAL]|005000000000001|test.user@example.com|(GMT+00:00) GMT|GMT+00:00
+09:00:00.0 (2000000)|EXECUTION_STARTED
+09:00:00.0 (3000000)|CODE_UNIT_STARTED|[EXTERNAL]|01q000000000001|OrderTrigger on Order trigger event AfterInsert|__sfdc_trigger/OrderTrigger
+09:00:00.0 (4000000)|METHOD_ENTRY|[9]|01p000000000001|OrderHandler.afterInsert(List<Order>)
+09:00:00.0 (5000000)|SOQL_EXECUTE_BEGIN|[20]|Aggregations:0|SELECT Id FROM Account WHERE Id = :id
+09:00:00.0 (7000000)|SOQL_EXECUTE_END|[20]|Rows:1
+09:00:00.0 (8000000)|SOQL_EXECUTE_BEGIN|[20]|Aggregations:0|SELECT Id FROM Account WHERE Id = :id
+09:00:00.0 (10000000)|SOQL_EXECUTE_END|[20]|Rows:1
+09:00:00.0 (11000000)|SOQL_EXECUTE_BEGIN|[20]|Aggregations:0|SELECT Id FROM Account WHERE Id = :id
+09:00:00.0 (13000000)|SOQL_EXECUTE_END|[20]|Rows:1
+09:00:00.0 (14000000)|USER_DEBUG|[25]|DEBUG|enqueueing job
+09:00:00.0 (15000000)|DML_BEGIN|[30]|Op:Insert|Type:Task|Rows:1
+09:00:00.0 (615000000)|DML_END|[30]
+09:00:00.0 (616000000)|EXCEPTION_THROWN|[42]|System.LimitException: Too many queueable jobs added to the queue: 2
+09:00:00.0 (617000000)|METHOD_EXIT|[9]|01p000000000001|OrderHandler.afterInsert(List<Order>)
+09:00:00.0 (618000000)|FATAL_ERROR|System.LimitException: Too many queueable jobs added to the queue: 2
+
+Class.OrderHandler.afterInsert: line 42, column 1
+Trigger.OrderTrigger: line 9, column 1
+09:00:00.0 (618000001)|FATAL_ERROR|System.LimitException: Too many queueable jobs added to the queue: 2
+
+Class.OrderHandler.afterInsert: line 42, column 1
+Trigger.OrderTrigger: line 9, column 1
+09:00:00.0 (619000000)|CUMULATIVE_LIMIT_USAGE
+09:00:00.0 (619000000)|LIMIT_USAGE_FOR_NS|(default)|
+  Number of SOQL queries: 160 out of 200
+  Number of query rows: 3 out of 50000
+  Number of DML statements: 1 out of 150
+  Maximum CPU time: 500 out of 10000
+  Number of queueable jobs added to the queue: 2 out of 1
+09:00:00.0 (619000000)|CUMULATIVE_LIMIT_USAGE_END
+09:00:00.0 (620000000)|CODE_UNIT_FINISHED|OrderTrigger on Order trigger event AfterInsert
+09:00:00.0 (621000000)|EXECUTION_FINISHED
