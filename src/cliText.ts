@@ -14,6 +14,7 @@ Input:
   - Supports one log or multiple logs in a single run
   - Emits one parsed result per input log
   - When parsing multiple logs, use jq -s to collect results into an array
+  - With --compact, each result is one line, so multiple logs produce NDJSON
 
 Default JSON output:
   - summary   per-log summary such as source, user, startTime, durationMs, sizeMb, compact logLevels, optional NDJSON metadata,
@@ -27,8 +28,10 @@ Notes:
   - --include-context adds compact execution ancestry to events
   - --near-limit reports transactions with governor-limit pressure instead of events
   - --hotspots reports the operations with the most self time instead of events
-  - Event filters preserve summary and filter only events, not tree; summary triage fields always reflect the full log
+  - In JSON output, event filters preserve summary and filter only events, not tree; summary triage fields always reflect the full log
   - Every parsed log is emitted; logs with no matching events have events: []
+  - With --tree, --min-duration-ms hides fast nodes instead of filtering events
+  - --max-depth limits the depth of --tree or --include-tree output
 
 Options:
   -f <file1.log> [file2.log ...]
@@ -39,6 +42,14 @@ Options:
       Print a human-readable execution tree instead of JSON.
   --include-tree
       Include the recursive execution tree in JSON output.
+  --max-depth <N>
+      Prune tree nodes deeper than N (ROOT is depth 0). Requires --tree or
+      --include-tree. --tree prints "… N descendants hidden" in their place;
+      --include-tree sets hiddenDescendants on the pruned node.
+  --compact
+      Print each JSON result on a single line instead of indenting it.
+      Applies to every JSON mode, including --near-limit and --hotspots.
+      Cannot be combined with --tree.
   --include-context
       Include compact ancestor context on each JSON event.
   --input-format <raw|ndjson>
@@ -55,6 +66,9 @@ Options:
       Exclusions win when a type is both included and excluded.
   --min-duration-ms <number>
       Include only events with durationMs greater than or equal to this value.
+      With --tree, hide nodes below this value instead, keeping ancestors of
+      kept nodes and collapsing hidden siblings into one summary line.
+      --type and --exclude-type cannot be combined with --tree.
   --near-limit
       Report transactions with near-threshold governor limit usage.
       This is an aggregate report mode and cannot be combined with tree,
@@ -114,6 +128,15 @@ Examples:
 
   Show SOQL events with their execution context:
     ... | apex-log-parser --type SOQL --include-context
+
+  Show only the top levels of a large execution tree:
+    ... | apex-log-parser --tree --max-depth 6
+
+  Show only the slow paths of an execution tree:
+    ... | apex-log-parser --tree --min-duration-ms 500
+
+  Print single-line JSON (NDJSON for multiple logs):
+    ... | apex-log-parser --compact
 
   Find the operations that actually consume the time:
     ... | apex-log-parser --hotspots --top 10
@@ -184,6 +207,9 @@ JSON output schema:
       Recursive execution tree using the same event fields plus children[].
       Included only when using --include-tree. Rendered as human-readable text
       instead of JSON when using --tree.
+    tree...hiddenDescendants
+      Present with --max-depth on nodes at the depth limit whose children were
+      pruned; counts all pruned descendants. Such nodes omit children.
     hotspots[]
       Present instead of events when using --hotspots. Events with a duration,
       except EXECUTION, LIMIT, EXCEPTION_THROWN, FATAL_ERROR, and USER_DEBUG, grouped
@@ -216,7 +242,10 @@ Notes:
   - events is the best starting point for jq filtering, grouping, and aggregation
   - default JSON output omits tree; use --include-tree to include it
   - default JSON output omits event context; use --include-context to include it
-  - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
+  - in JSON output, --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
+  - --min-duration-ms with --tree prunes the text tree instead
+  - --max-depth prunes only the tree, never events
+  - --compact prints each JSON result on one line instead of 2-space indentation
   - --hotspots is an aggregate report mode; --type and --exclude-type restrict which events are grouped
   - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context

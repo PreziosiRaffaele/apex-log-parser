@@ -1,5 +1,8 @@
-import { TreeNode, ParsedLog } from './types.js'
+import { ParsedLog } from './types.js'
 import { sanitizeString } from './ParserUtils.js'
+import { pruneTree, PrunedTreeNode, TreePruneOptions } from './TreePruner.js'
+
+type TreeLine = PrunedTreeNode | string;
 
 export class TreeRenderer {
     constructor() { }
@@ -16,7 +19,7 @@ export class TreeRenderer {
     /**
      * Format a single node's display line with all details
      */
-    private formatNodeLine(node: TreeNode, totalDuration: number, availableWidth: number): string {
+    private formatNodeLine(node: PrunedTreeNode, totalDuration: number, availableWidth: number): string {
         let line = `${node.type}(${node.id})`;
 
         let durationInfo = '';
@@ -52,51 +55,60 @@ export class TreeRenderer {
         return line;
     }
 
-    private getFallbackDisplayName(node: TreeNode): string | undefined {
+    private getFallbackDisplayName(node: PrunedTreeNode): string | undefined {
         if (node.type === 'LIMIT') return node.namespace;
         if (node.type === 'USER_DEBUG' && node.message) return sanitizeString(node.message);
         return undefined;
+    }
+
+    private getHiddenLines(node: PrunedTreeNode): string[] {
+        const lines: string[] = [];
+        if (node.hiddenChildren) {
+            const { count, durationMs } = node.hiddenChildren;
+            lines.push(`… ${count} ${count === 1 ? 'node' : 'nodes'} hidden [${durationMs}ms total]`);
+        }
+        if (node.hiddenDescendants) {
+            const count = node.hiddenDescendants;
+            lines.push(`… ${count} ${count === 1 ? 'descendant' : 'descendants'} hidden`);
+        }
+        return lines;
     }
 
     /**
      * Recursively render a node and its children
      */
     private renderNodeRecursive(
-        node: TreeNode,
+        entry: TreeLine,
         indent: string,
         isLast: boolean,
         totalDuration: number,
         terminalWidth: number
     ): string[] {
-        const lines: string[] = [];
-
         const branch = isLast ? '└── ' : '├── ';
+        if (typeof entry === 'string') return [indent + branch + entry];
+
         const childIndent = indent + (isLast ? '    ' : '│   ');
-
         const availableWidth = terminalWidth - (indent.length + branch.length);
-        const formattedLine = this.formatNodeLine(node, totalDuration, availableWidth);
-        lines.push(indent + branch + formattedLine);
-
-        const children = node.children ?? [];
-        lines.push(...this.renderChildren(children, childIndent, totalDuration, terminalWidth));
-
+        const lines = [indent + branch + this.formatNodeLine(entry, totalDuration, availableWidth)];
+        lines.push(...this.renderChildren(entry, childIndent, totalDuration, terminalWidth));
         return lines;
     }
 
     /**
-     * Render a list of child nodes
+     * Render a node's children followed by any hidden-node summary lines
      */
     private renderChildren(
-        children: TreeNode[],
+        node: PrunedTreeNode,
         indent: string,
         totalDuration: number,
         terminalWidth: number
     ): string[] {
-        return children.flatMap((child, index) =>
+        const entries: TreeLine[] = [...(node.children ?? []), ...this.getHiddenLines(node)];
+        return entries.flatMap((entry, index) =>
             this.renderNodeRecursive(
-                child,
+                entry,
                 indent,
-                index === children.length - 1,
+                index === entries.length - 1,
                 totalDuration,
                 terminalWidth
             )
@@ -106,9 +118,9 @@ export class TreeRenderer {
     /**
      * Render the complete tree structure
      */
-    public renderTree(parsedLog: ParsedLog): string {
-        const rootNode = parsedLog.tree;
-        if (!rootNode) return '';
+    public renderTree(parsedLog: ParsedLog, pruneOptions: TreePruneOptions = {}): string {
+        if (!parsedLog.tree) return '';
+        const rootNode = pruneTree(parsedLog.tree, pruneOptions);
         const totalDuration = parsedLog.summary.durationMs;
         const lines: string[] = [];
         const terminalWidth = process.stdout.columns || 160;
@@ -116,8 +128,7 @@ export class TreeRenderer {
         // Render root node without tree branches
         lines.push(this.formatNodeLine(rootNode, totalDuration, terminalWidth));
 
-        const children = rootNode.children ?? [];
-        lines.push(...this.renderChildren(children, '', totalDuration, terminalWidth));
+        lines.push(...this.renderChildren(rootNode, '', totalDuration, terminalWidth));
 
         return lines.join('\n');
     }

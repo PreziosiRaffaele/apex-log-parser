@@ -5,6 +5,7 @@ import type { ParsedLog, EventNode, NodeType, LimitType } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
 import { TreeRenderer } from './TreeRenderer.js';
+import { pruneTree, type PrunedTreeNode } from './TreePruner.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { buildHotspotReport, DEFAULT_HOTSPOT_TOP } from './HotspotReport.js';
 import { buildNearLimitReport, createDefaultNearLimitThresholds, isLimitType, LIMIT_TYPES, type NearLimitOptions } from './NearLimitReport.js';
@@ -27,6 +28,8 @@ type ParsedArgs = {
     nearLimitOptions: NearLimitOptions;
     hotspots: boolean;
     top: number;
+    maxDepth?: number;
+    compact: boolean;
 }
 
 type EventFilters = {
@@ -44,11 +47,13 @@ type CliOutputOptions = {
     nearLimitOptions: NearLimitOptions;
     hotspots: boolean;
     top: number;
+    maxDepth?: number;
+    compact: boolean;
 };
 
 type CliJsonOutput = {
     summary: ParsedLog['summary'];
-    tree?: ParsedLog['tree'];
+    tree?: PrunedTreeNode;
     events: EventNode[];
 };
 
@@ -110,6 +115,8 @@ function parseArgs(args: string[]): ParsedArgs {
                 'exclude-limit': { type: 'string', multiple: true },
                 hotspots: { type: 'boolean' },
                 top: { type: 'string' },
+                'max-depth': { type: 'string' },
+                compact: { type: 'boolean' },
                 f: { type: 'string', multiple: true, short: 'f' },
             },
         });
@@ -128,7 +135,6 @@ function parseArgs(args: string[]): ParsedArgs {
         const tree = values.tree ?? false;
         const includeTree = values['include-tree'] ?? false;
         const includeContext = values['include-context'] ?? false;
-        const hasFilters = hasActiveFilters(filters);
         const nearLimit = values['near-limit'] ?? false;
 
         if (!nearLimit && hasNearLimitOptions(values['limit-threshold'], values['exclude-limit'])) {
@@ -154,8 +160,18 @@ function parseArgs(args: string[]): ParsedArgs {
             console.error('Cannot combine --tree with --include-context.');
             process.exit(1);
         }
-        if (hasFilters && tree) {
-            console.error('Cannot combine event filters with --tree.');
+        if (tree && (filters.includeTypes.size > 0 || filters.excludeTypes.size > 0)) {
+            console.error('Cannot combine --type or --exclude-type with --tree.');
+            process.exit(1);
+        }
+        const maxDepth = parseMaxDepth(values['max-depth']);
+        if (maxDepth !== undefined && !tree && !includeTree) {
+            console.error('Cannot use --max-depth without --tree or --include-tree.');
+            process.exit(1);
+        }
+        const compact = values.compact ?? false;
+        if (compact && tree) {
+            console.error('Cannot combine --compact with --tree.');
             process.exit(1);
         }
         if (hotspots) {
@@ -191,6 +207,8 @@ function parseArgs(args: string[]): ParsedArgs {
             nearLimitOptions,
             hotspots,
             top,
+            maxDepth,
+            compact,
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -354,8 +372,15 @@ function parseMinDurationMs(value: string | undefined): number | undefined {
     return minDurationMs;
 }
 
-function hasActiveFilters(filters: EventFilters): boolean {
-    return filters.includeTypes.size > 0 || filters.excludeTypes.size > 0 || filters.minDurationMs !== undefined;
+function parseMaxDepth(value: string | undefined): number | undefined {
+    if (value === undefined) return undefined;
+
+    if (!/^\d+$/.test(value)) {
+        console.error('Invalid value for --max-depth. Expected a non-negative integer.');
+        process.exit(1);
+    }
+
+    return Number(value);
 }
 
 function showVersion(): never {
@@ -414,17 +439,15 @@ async function verifyLogFile(filePath: string, logSkipMessage: boolean = false):
 
 function outputResult(data: ParsedLog, options: CliOutputOptions): void {
     if (options.tree) {
-        console.log(new TreeRenderer().renderTree(data));
-    } else if (options.hotspots) {
-        const output = buildHotspotReport(data.summary, filterEvents(data.events, options.filters), options.top);
-        console.log(JSON.stringify(output, null, 2));
-    } else if (options.nearLimit) {
-        const output = buildNearLimitReport(data, options.nearLimitOptions);
-        console.log(JSON.stringify(output, null, 2));
-    } else {
-        const output = createJsonOutput(data, options);
-        console.log(JSON.stringify(output, null, 2));
+        console.log(new TreeRenderer().renderTree(data, { maxDepth: options.maxDepth, minDurationMs: options.filters.minDurationMs }));
+        return;
     }
+    const output = options.hotspots
+        ? buildHotspotReport(data.summary, filterEvents(data.events, options.filters), options.top)
+        : options.nearLimit
+            ? buildNearLimitReport(data, options.nearLimitOptions)
+            : createJsonOutput(data, options);
+    console.log(options.compact ? JSON.stringify(output) : JSON.stringify(output, null, 2));
 }
 
 function createJsonOutput(data: ParsedLog, options: CliOutputOptions): CliJsonOutput {
@@ -434,7 +457,7 @@ function createJsonOutput(data: ParsedLog, options: CliOutputOptions): CliJsonOu
     };
 
     if (options.includeTree) {
-        output.tree = data.tree;
+        output.tree = data.tree && pruneTree(data.tree, { maxDepth: options.maxDepth });
     }
 
     return output;
@@ -627,7 +650,7 @@ async function processNdjsonStdin(parser: ApexLogParser, options: CliOutputOptio
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
-    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions, hotspots, top } = parseArgs(args);
+    const { files, tree, includeTree, includeContext, inputFormat, filters, nearLimit, nearLimitOptions, hotspots, top, maxDepth, compact } = parseArgs(args);
     const outputOptions: CliOutputOptions = {
         tree,
         includeTree,
@@ -637,6 +660,8 @@ async function main(): Promise<void> {
         nearLimitOptions,
         hotspots,
         top,
+        maxDepth,
+        compact,
     };
 
     const parser = new ApexLogParser();
