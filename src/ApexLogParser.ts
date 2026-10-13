@@ -1,7 +1,7 @@
 import { removeTrailingNewlines, sanitizeString, decodeEscapedPipes, extractClockTime, extractTimestamp, extractLineNumber, convertNsToMs, extractObject, extractRows, parseGovernorLimits } from './ParserUtils.js';
 import { IdGenerator } from './IdGenerator.js';
 import { buildTriageSummary } from './TriageSummary.js';
-import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType, LimitScope } from './types.js';
+import { LogLevel, LogLevelsMap, ParsedLog, ParsedLogSummary, TreeNode, EventNode, ParseOptions, EventContextFrame, NodeType, LimitScope, StackFrame } from './types.js';
 
 type ParserSummaryState = {
     source: string;
@@ -79,6 +79,45 @@ function computeSelfMs(node: TreeNode): number {
     return Math.round((selfMs + Number.EPSILON) * 1000) / 1000;
 }
 
+const LOCATED_FRAME_PATTERN = /^(\S+): line (\d+), column (\d+)$/;
+const BARE_FRAME_PATTERN = /^(?:(?:Class|Trigger)\.\S+|AnonymousBlock)$/;
+const HIDDEN_FRAME_MARKER_PATTERN = /^\(.*\)$/;
+const EXTERNAL_ENTRY_POINT = 'External entry point';
+
+/**
+ * Splits FATAL_ERROR text into the exception message and its stack frames, which are the trailing
+ * frame lines. "External entry point" and parenthesized markers such as "(System Code)" are dropped.
+ * Without a blank separator line, the frames are trusted only if at least one has "line N, column M";
+ * otherwise the whole text is the message. Text made only of frames, one of them located, yields an empty message.
+ * The message keeps its original newlines.
+ */
+function parseFatalErrorText(text: string): { message: string; stackTrace: StackFrame[] } {
+    const lines = text.split(/\r?\n/);
+    const stackTrace: StackFrame[] = [];
+    let hasLocatedFrame = false;
+    let index = lines.length - 1;
+    while (index >= 0 && lines[index].trim() === '') index--;
+
+    for (; index >= 0; index--) {
+        const line = lines[index].trim();
+        if (line === '') break;
+        if (line === EXTERNAL_ENTRY_POINT || HIDDEN_FRAME_MARKER_PATTERN.test(line)) continue;
+        const located = LOCATED_FRAME_PATTERN.exec(line);
+        if (located) {
+            stackTrace.unshift({ frame: located[1], lineNumber: Number(located[2]), column: Number(located[3]) });
+            hasLocatedFrame = true;
+        } else if (BARE_FRAME_PATTERN.test(line)) {
+            stackTrace.unshift({ frame: line });
+        } else {
+            if (!hasLocatedFrame) return { message: text.trimEnd(), stackTrace: [] };
+            return { message: lines.slice(0, index + 1).join('\n').trimEnd(), stackTrace };
+        }
+    }
+
+    if (index < 0) return hasLocatedFrame ? { message: '', stackTrace } : { message: text.trimEnd(), stackTrace: [] };
+    return { message: lines.slice(0, index).join('\n').trimEnd(), stackTrace };
+}
+
 export class ApexLogParser {
     private summary: ParserSummaryState = createEmptySummaryState();
     private logSize?: number;
@@ -89,6 +128,7 @@ export class ApexLogParser {
     private inLimitBlock: boolean = false;
     private currentLimitScope: LimitScope = 'cumulative';
     private pendingLimitScope?: LimitScope;
+    private lastFatalErrorPayload?: string;
 
     private mapTypeByTypeExit: Map<string, string> = new Map([
         ['CODE_UNIT_FINISHED', 'CODE_UNIT'],
@@ -170,6 +210,7 @@ export class ApexLogParser {
         this.inLimitBlock = false;
         this.currentLimitScope = 'cumulative';
         this.pendingLimitScope = undefined;
+        this.lastFatalErrorPayload = undefined;
     }
 
     private parseLine(line: string): void {
@@ -194,6 +235,9 @@ export class ApexLogParser {
             timestamp = extractTimestamp(executionTimePart);
             this.closeNode(timestamp);
         }
+
+        const previousFatalErrorPayload = this.lastFatalErrorPayload;
+        this.lastFatalErrorPayload = eventType === 'FATAL_ERROR' ? eventPayload : undefined;
 
         switch (eventType) {
             case 'USER_INFO':
@@ -285,6 +329,8 @@ export class ApexLogParser {
                 this.handleNodeExit(timestamp, eventType);
                 break;
             case 'FATAL_ERROR':
+                // Salesforce writes the same FATAL_ERROR twice in a row; keep only the first.
+                if (eventPayload === previousFatalErrorPayload) break;
                 timestamp = timestamp ?? extractTimestamp(executionTimePart);
                 this.handleFatalError(timestamp, eventPayload);
                 break;
@@ -466,14 +512,17 @@ export class ApexLogParser {
     }
 
     private handleFatalError(timestamp: number, eventPayload: string): void {
-        // Create an EXCEPTION node so that the fatal error is captured in the tree
-        const exceptionMessage = sanitizeString(getPipeFieldFromEnd(eventPayload, 0));
+        const { message, stackTrace } = parseFatalErrorText(decodeEscapedPipes(getPipeFieldFromEnd(eventPayload, 0)));
+        const firstLine = message.trimStart().split('\n')[0];
+        const colonIndex = firstLine.indexOf(':');
         const node: TreeNode = {
             id: this.idGenerator.next(),
             parentId: this.currentNode.id,
             type: 'FATAL_ERROR',
-            name: exceptionMessage,
-            exceptionType: exceptionMessage.substring(0, exceptionMessage.indexOf(':')),
+            name: sanitizeString(message),
+            message,
+            ...(colonIndex === -1 ? {} : { exceptionType: firstLine.substring(0, colonIndex) }),
+            stackTrace,
             timeStart: timestamp,
         };
 

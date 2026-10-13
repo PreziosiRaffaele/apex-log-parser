@@ -44,6 +44,12 @@ export type ParseOptions = {
     includeContext?: boolean;
 };
 
+export type StackFrame = {
+    frame: string;
+    lineNumber?: number;
+    column?: number;
+};
+
 export type LimitsObject = Record<LimitType, LimitDetail>;
 
 export interface TreeNode {
@@ -62,6 +68,7 @@ export interface TreeNode {
     exceptionType?: string;
     debugLevel?: string;
     message?: string;
+    stackTrace?: StackFrame[];
     name?: string;
     method?: string;
     lineNumber?: number;

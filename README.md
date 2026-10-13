@@ -133,9 +133,9 @@ In this mode, `summary.source` and each event `source` are set to `Id`, and any 
 Every JSON output (default and `--near-limit`) includes triage fields in `summary`, computed from the full log so they are never affected by `--type`, `--exclude-type`, or `--min-duration-ms`:
 
 - `outcome`: `fatal` when the log contains any `FATAL_ERROR`, otherwise `success`.
-- `errors`: one entry per `FATAL_ERROR` with `eventId`, `exceptionType`, `message` (the exception message without the stack trace), and `lineNumber` (top stack frame) when available. Identical consecutive fatal errors are collapsed, because Salesforce logs each one twice. Omitted when there are no fatal errors.
+- `errors`: one entry per `FATAL_ERROR` with `eventId`, `exceptionType`, `message` (the exception message without the stack trace), and `lineNumber` (the innermost stack frame that has one) when available. Like `FATAL_ERROR` events, identical consecutive fatal errors are collapsed, because Salesforce logs each one twice. Omitted when there are no fatal errors.
 - `peakLimits`: the worst `LIMIT` snapshot per limit type across all namespaces and scopes (highest `usagePercentage`, then `current`), with `current`, `max`, `usagePercentage`, and `namespace`. Only limits with `max > 0` and `current > 0` are included.
-- `counts`: the number of `soql`, `dml`, `callouts`, `exceptionsThrown`, `fatalErrors`, and `userDebug` events. `fatalErrors` counts raw `FATAL_ERROR` events, before deduplication.
+- `counts`: the number of `soql`, `dml`, `callouts`, `exceptionsThrown`, `fatalErrors`, and `userDebug` events. `fatalErrors` counts `FATAL_ERROR` events, so a fatal error that Salesforce logged twice counts once.
 
 ```json
 "outcome": "fatal",
@@ -427,7 +427,9 @@ The `type` property in `events` corresponds to the kind of parsed log event. You
 *   `SOQL`: A SOQL query.
 *   `DML`: A DML statement (e.g., insert, update, delete).
 *   `EXCEPTION_THROWN`: An exception that was thrown but may be handled; execution continues. Includes `name` and `exceptionType`.
-*   `FATAL_ERROR`: A terminal failure (unhandled exception, governor limit, etc.). Execution stops and the stack unwinds. Includes `name` and `exceptionType`.
+*   `FATAL_ERROR`: A terminal failure (unhandled exception, governor limit, etc.). Execution stops and the stack unwinds. Includes `message` (the exception message, newlines preserved), `name` (the same message on one line), `exceptionType` (the text before the first `:` on the message's first line; omitted when that line has no `:`), and `stackTrace`: an array of `{frame, lineNumber, column}` objects, innermost frame first (for example `Class.MyHandler.afterInsert` or `Trigger.MyTrigger`). Frames are read from the trailing lines of the text. Without a blank line separating them from the message, the frames count only if at least one has `line N, column M`; when all are bare (such as `Class.Foo.bar`), the whole text is the message and `stackTrace` is empty. Text made only of frames gives an empty `message`. The `External entry point` marker and parenthesized hidden-frame markers such as `(System Code)` are dropped. Salesforce writes each fatal error twice, so consecutive identical `FATAL_ERROR` lines become a single event.
+
+    Output change: earlier versions put the exception message and the whole stack trace into `name`, and reported the duplicate line as a second event. `name` now holds only the message.
 *   `EXECUTION`: The start and end of the entire execution.
 *   `FLOW`: A flow execution.
 *   `FLOW_ELEMENT`: An element within a flow.

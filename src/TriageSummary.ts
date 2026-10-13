@@ -1,19 +1,14 @@
 import { LIMIT_TYPES } from './NearLimitReport.js';
+import { sanitizeString } from './ParserUtils.js';
 import type { EventNode, LimitType, PeakLimit, SummaryCounts, SummaryError, TriageSummary } from './types.js';
-
-// A sanitized FATAL_ERROR name is "<headline> <stack frame>...", each newline replaced by a space.
-const STACK_TRACE_START = /\s+(?=(?:Class|Trigger)\.[\w.]+: line \d+, column \d+|AnonymousBlock: line \d+, column \d+|\(System Code\)|External entry point)/;
-const STACK_FRAME_LINE = /: line (\d+), column \d+/;
 
 /**
  * Derives triage fields from the complete, unfiltered event list in chronological order.
- * Identical consecutive FATAL_ERROR entries within one execution are collapsed because Salesforce logs them twice.
  */
 export function buildTriageSummary(events: EventNode[]): TriageSummary {
     const counts: SummaryCounts = { soql: 0, dml: 0, callouts: 0, exceptionsThrown: 0, fatalErrors: 0, userDebug: 0 };
     const errors: SummaryError[] = [];
     const peakLimits: Partial<Record<LimitType, PeakLimit>> = {};
-    let previousFatal: EventNode | undefined;
 
     for (const event of events) {
         switch (event.type) {
@@ -24,12 +19,7 @@ export function buildTriageSummary(events: EventNode[]): TriageSummary {
             case 'USER_DEBUG': counts.userDebug++; break;
             case 'FATAL_ERROR': {
                 counts.fatalErrors++;
-                const error = toSummaryError(event);
-                if (!previousFatal || previousFatal.executionId !== event.executionId
-                    || !isSameError(errors[errors.length - 1], error)) {
-                    errors.push(error);
-                }
-                previousFatal = event;
+                errors.push(toSummaryError(event));
                 break;
             }
             case 'LIMIT':
@@ -47,25 +37,17 @@ export function buildTriageSummary(events: EventNode[]): TriageSummary {
 }
 
 function toSummaryError(event: EventNode): SummaryError {
-    const text = event.name ?? '';
-    const stackStart = text.search(STACK_TRACE_START);
-    const headline = stackStart === -1 ? text : text.slice(0, stackStart);
-    const stackTrace = stackStart === -1 ? '' : text.slice(stackStart);
-    const colon = headline.indexOf(':');
-    const exceptionType = colon === -1 ? '' : headline.slice(0, colon).trim();
-    const message = (colon === -1 ? headline : headline.slice(colon + 1)).trim();
-
-    const error: SummaryError = { eventId: event.id, exceptionType, message };
-    const lineMatch = STACK_FRAME_LINE.exec(stackTrace);
-    if (lineMatch) error.lineNumber = Number(lineMatch[1]);
+    const exceptionType = event.exceptionType ?? '';
+    const message = sanitizeString(event.message ?? '');
+    const error: SummaryError = {
+        eventId: event.id,
+        exceptionType,
+        message: exceptionType ? message.slice(exceptionType.length + 1).trim() : message,
+    };
+    const lineNumber = event.stackTrace?.find(frame => frame.lineNumber !== undefined)?.lineNumber;
+    if (lineNumber !== undefined) error.lineNumber = lineNumber;
 
     return error;
-}
-
-function isSameError(left: SummaryError, right: SummaryError): boolean {
-    return left.exceptionType === right.exceptionType
-        && left.message === right.message
-        && left.lineNumber === right.lineNumber;
 }
 
 function collectPeakLimits(event: EventNode, peakLimits: Partial<Record<LimitType, PeakLimit>>): void {

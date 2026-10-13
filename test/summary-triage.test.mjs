@@ -84,7 +84,7 @@ test('summary reports fatal outcome with deduplicated errors, peak limits, and c
         dml: 1,
         callouts: 1,
         exceptionsThrown: 2,
-        fatalErrors: 2,
+        fatalErrors: 1,
         userDebug: 1,
     });
 });
@@ -126,7 +126,7 @@ test('--near-limit output carries triage summary fields', () => {
     const report = runCli(['--near-limit', '--limit-threshold', 'QUEUEABLE_JOBS=100']);
 
     assert.equal(report.summary.outcome, 'fatal');
-    assert.equal(report.summary.counts.fatalErrors, 2);
+    assert.equal(report.summary.counts.fatalErrors, 1);
     assert.equal(report.summary.peakLimits.QUEUEABLE_JOBS.usagePercentage, 200);
 });
 
