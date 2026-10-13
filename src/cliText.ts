@@ -179,7 +179,7 @@ JSON output schema:
       id            Parser-generated event identifier unique within a log
       parentId      Parent event identifier; omitted for top-level events
       type          Event category such as METHOD, CONSTRUCTOR, SOQL, DML, CALLOUT, or LIMIT
-      name          Human-readable event label used in the tree view
+      name          Human-readable event label used in the tree view; for FATAL_ERROR, the exception message on one line
       method        Method-style event name when the source log provides it
       lineNumber    Apex source line number associated with the event
       query         Full SOQL query text for SOQL events
@@ -193,7 +193,10 @@ JSON output schema:
       selfMs        Exclusive time: durationMs minus the direct children's durationMs, clamped at 0
       exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
       debugLevel    System.debug logging level such as DEBUG, INFO, or WARN for USER_DEBUG events
-      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines
+      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines;
+                    exception message (with newlines) for FATAL_ERROR events
+      stackTrace    FATAL_ERROR stack frames, innermost first, as {frame, lineNumber, column};
+                    'External entry point' and '(System Code)'-style markers are dropped
       limits        Governor limit usage object for LIMIT events
       request       Outbound request text for CALLOUT events
       response      Inbound response text for CALLOUT events
@@ -249,6 +252,7 @@ Notes:
   - --hotspots is an aggregate report mode; --type and --exclude-type restrict which events are grouped
   - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
+  - consecutive identical FATAL_ERROR lines are reported as a single event
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - every parsed log is emitted; events is [] when no events match the filters
 `.trim();
