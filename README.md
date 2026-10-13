@@ -281,6 +281,23 @@ To include the recursive tree in JSON output, use `--include-tree`:
 apex-log-parser -f mylog.log --include-tree
 ```
 
+### JSON Schema
+
+`--json-schema` prints a JSON Schema (draft 2020-12) for each JSON document the CLI writes. A document matches `DefaultOutput` (`summary`, `events`, and optional `tree`) or `NearLimitOutput` (`summary` and `nearLimitTransactions`). `--schema` prints the same information as a human-readable field reference.
+
+```bash
+apex-log-parser --json-schema > apex-log-parser.schema.json
+```
+
+### Agent Skill
+
+The package ships an agent skill at `skills/apex-log-parser/SKILL.md`. It describes a triage workflow (summary, near-limit report, slow events, repeated queries), `jq` recipes, and how to keep output small. Print it with `--skill`, for example to install it for an agent:
+
+```bash
+mkdir -p .claude/skills/apex-log-parser
+apex-log-parser --skill > .claude/skills/apex-log-parser/SKILL.md
+```
+
 ### Exit Codes
 
 | Code | Meaning |
@@ -302,7 +319,9 @@ The `type` property in `events` corresponds to the kind of parsed log event. You
 *   `SOQL`: A SOQL query.
 *   `DML`: A DML statement (e.g., insert, update, delete).
 *   `EXCEPTION_THROWN`: An exception that was thrown but may be handled; execution continues. Includes `name` and `exceptionType`.
-*   `FATAL_ERROR`: A terminal failure (unhandled exception, governor limit, etc.). Execution stops and the stack unwinds. Includes `name` and `exceptionType`.
+*   `FATAL_ERROR`: A terminal failure (unhandled exception, governor limit, etc.). Execution stops and the stack unwinds. Includes `message` (the exception message, newlines preserved), `name` (the same message on one line), `exceptionType` (omitted when the message has no `:`), and `stackTrace`: an array of `{frame, lineNumber, column}` objects, innermost frame first (for example `Class.MyHandler.afterInsert` or `Trigger.MyTrigger`). Frames are read only from a trailing block separated from the message by a blank line; without one, the whole text is the message and `stackTrace` is empty. The `External entry point` marker and parenthesized hidden-frame markers such as `(System Code)` are dropped. Salesforce writes each fatal error twice, so consecutive identical `FATAL_ERROR` lines become a single event.
+
+    Output change: earlier versions put the exception message and the whole stack trace into `name`, and reported the duplicate line as a second event. `name` now holds only the message.
 *   `EXECUTION`: The start and end of the entire execution.
 *   `FLOW`: A flow execution.
 *   `FLOW_ELEMENT`: An element within a flow.

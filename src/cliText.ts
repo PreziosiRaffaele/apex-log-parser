@@ -65,6 +65,10 @@ Options:
       Exclusions win over defaults and threshold overrides.
   --schema
       Print the JSON output schema and field reference.
+  --json-schema
+      Print a JSON Schema (draft 2020-12) for the default and --near-limit JSON output.
+  --skill
+      Print the packaged agent skill (SKILL.md) describing a log triage workflow.
   -v, --version
       Print the parser version.
   -h, --help
@@ -134,7 +138,7 @@ JSON output schema:
       id            Parser-generated event identifier unique within a log
       parentId      Parent event identifier; omitted for top-level events
       type          Event category such as METHOD, CONSTRUCTOR, SOQL, DML, CALLOUT, or LIMIT
-      name          Human-readable event label used in the tree view
+      name          Human-readable event label used in the tree view; for FATAL_ERROR, the exception message on one line
       method        Method-style event name when the source log provides it
       lineNumber    Apex source line number associated with the event
       query         Full SOQL query text for SOQL events
@@ -147,7 +151,10 @@ JSON output schema:
       durationMs    Computed event duration in milliseconds rounded to 3 decimals
       exceptionType Exception class name for EXCEPTION_THROWN or FATAL_ERROR events
       debugLevel    System.debug logging level such as DEBUG, INFO, or WARN for USER_DEBUG events
-      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines
+      message       Full System.debug message text for USER_DEBUG events, including '|' and newlines;
+                    exception message (with newlines) for FATAL_ERROR events
+      stackTrace    FATAL_ERROR stack frames, innermost first, as {frame, lineNumber, column};
+                    'External entry point' and '(System Code)'-style markers are dropped
       limits        Governor limit usage object for LIMIT events
       request       Outbound request text for CALLOUT events
       response      Inbound response text for CALLOUT events
@@ -181,6 +188,8 @@ Notes:
   - default JSON output omits event context; use --include-context to include it
   - --type, --exclude-type, and --min-duration-ms filter events while preserving summary and any included tree
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
+  - consecutive identical FATAL_ERROR lines are reported as a single event
+  - use --json-schema for a machine-readable JSON Schema of this output
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - logs with no matching events are omitted when filters are active
 `.trim();

@@ -4,6 +4,7 @@ import { ApexLogParser } from './index.js';
 import type { ParsedLog, EventNode, NodeType, LimitType } from './index.js';
 import { ApexLogSplitter, LogData } from './ApexLogSplitter.js';
 import { HELP_TEXT, SCHEMA_TEXT } from './cliText.js';
+import { JSON_SCHEMA } from './jsonSchema.js';
 import { TreeRenderer } from './TreeRenderer.js';
 import { checkFileExists, cleanAnsiCodes } from './cliUtils.js';
 import { buildNearLimitReport, createDefaultNearLimitThresholds, isLimitType, LIMIT_TYPES, type NearLimitOptions } from './NearLimitReport.js';
@@ -93,6 +94,8 @@ function parseArgs(args: string[]): ParsedArgs {
                 help: { type: 'boolean', short: 'h' },
                 version: { type: 'boolean', short: 'v' },
                 schema: { type: 'boolean' },
+                'json-schema': { type: 'boolean' },
+                skill: { type: 'boolean' },
                 tree: { type: 'boolean' },
                 'include-tree': { type: 'boolean' },
                 'include-context': { type: 'boolean' },
@@ -110,6 +113,8 @@ function parseArgs(args: string[]): ParsedArgs {
         if (values.help) showUsage();
         if (values.version) showVersion();
         if (values.schema) showSchema();
+        if (values['json-schema']) showJsonSchema();
+        if (values.skill) showSkill();
 
         const inputFormatValue = values['input-format'];
         if (inputFormatValue !== undefined && inputFormatValue !== 'raw' && inputFormatValue !== 'ndjson') {
@@ -325,6 +330,22 @@ function showUsage(): never {
 
 function showSchema(): never {
     console.log(SCHEMA_TEXT);
+    process.exit(0);
+}
+
+function showJsonSchema(): never {
+    console.log(JSON.stringify(JSON_SCHEMA, null, 2));
+    process.exit(0);
+}
+
+function showSkill(): never {
+    const skillPath = path.resolve(__dirname, '..', 'skills', 'apex-log-parser', 'SKILL.md');
+    try {
+        process.stdout.write(readFileSync(skillPath, 'utf-8'));
+    } catch (error) {
+        console.error(`Error reading agent skill: ${error}`);
+        process.exit(1);
+    }
     process.exit(0);
 }
 
