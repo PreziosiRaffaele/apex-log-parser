@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,8 +28,26 @@ const logPaths = ['a.log', 'b.log', 'c.log'].map((name) => {
 });
 test.after(() => rmSync(tempDir, { recursive: true, force: true }));
 
-function runCli(args, input = '') {
-    return spawnSync(process.execPath, [cliPath, ...args], {
+const parserUrl = pathToFileURL(resolve(repoRoot, 'dist/ApexLogParser.js')).href;
+// Preloads used to reach states that are hard to produce from a test process.
+const failingParsePreload = `
+import { ApexLogParser } from ${JSON.stringify(parserUrl)};
+const parse = ApexLogParser.prototype.parse;
+ApexLogParser.prototype.parse = function (log, ...rest) {
+    if (log.includes('FAIL_PARSE')) throw new Error('boom');
+    return parse.call(this, log, ...rest);
+};
+`;
+const ttyStdinPreload = `Object.defineProperty(process.stdin, 'isTTY', { value: true });`;
+
+function preload(source) {
+    return ['--import', `data:text/javascript,${encodeURIComponent(source)}`];
+}
+
+const failingLog = sampleLog.replace('Class.Test.run()', 'Class.Test.FAIL_PARSE()');
+
+function runCli(args, input = '', nodeArgs = []) {
+    return spawnSync(process.execPath, [...nodeArgs, cliPath, ...args], {
         input,
         encoding: 'utf8',
     });
@@ -65,4 +83,44 @@ test('missing positional file exits with an error', () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /File not found/);
     assert.equal(result.stdout, '');
+});
+
+test('interactive stdin without files prints help to stderr and exits 1', () => {
+    const result = runCli([], '', preload(ttyStdinPreload));
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Usage:/);
+});
+
+test('raw stdin without an Apex log header exits 1', () => {
+    const result = runCli([], 'garbage\n');
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /No Apex log found in stdin/);
+});
+
+test('raw stdin parses every log and exits 0', () => {
+    const result = runCli([], `${sampleLog}\n${sampleLog}\n`);
+
+    assert.deepEqual(parseSources(result), ['stdin: 1', 'stdin: 2']);
+    assert.equal(result.stderr, '');
+});
+
+test('raw stdin reports parse failures and exits 2 on partial success', () => {
+    const result = runCli([], `${sampleLog}\n${failingLog}\n`, preload(failingParsePreload));
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /Error parsing stdin: 2: boom/);
+    assert.equal(JSON.parse(result.stdout).summary.source, 'stdin: 1');
+});
+
+test('raw stdin exits 1 when every log fails to parse', () => {
+    const result = runCli([], `${failingLog}\n${failingLog}\n`, preload(failingParsePreload));
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Error parsing stdin: 1: boom/);
+    assert.match(result.stderr, /Error parsing stdin: 2: boom/);
 });

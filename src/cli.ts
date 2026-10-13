@@ -457,9 +457,19 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
         crlfDelay: Infinity,
     });
 
+    let logCount = 0;
+    let successfulParses = 0;
     const splitter = new ApexLogSplitter((logData: LogData) => {
-        const apexLog = parser.parse(logData.log, 'stdin: ' + logData.number, { includeContext: options.includeContext });
-        outputResult(apexLog, options);
+        logCount++;
+        const source = 'stdin: ' + logData.number;
+        try {
+            const apexLog = parser.parse(logData.log, source, { includeContext: options.includeContext });
+            outputResult(apexLog, options);
+            successfulParses++;
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`Error parsing ${source}: ${message}`);
+        }
     });
 
     rl.on('line', (line) => {
@@ -475,7 +485,17 @@ async function processRawStdin(parser: ApexLogParser, options: CliOutputOptions)
     rl.on('close', async () => {
         splitter.finalize();
         await new Promise(resolve => process.stdout.write('', resolve));
-        process.exit(0);
+
+        if (logCount === 0) {
+            console.error('No Apex log found in stdin. Expected a log header such as "64.0 APEX_CODE,FINEST;...".');
+            process.exit(1);
+        } else if (successfulParses === 0) {
+            process.exit(1); // Total failure
+        } else if (successfulParses < logCount) {
+            process.exit(2); // Partial success
+        } else {
+            process.exit(0); // Total success
+        }
     });
 }
 
@@ -572,7 +592,8 @@ async function main(): Promise<void> {
 
     if (files.length === 0) {
         if (process.stdin.isTTY) {
-            process.exit(0);
+            console.error(HELP_TEXT);
+            process.exit(1);
         }
         if (inputFormat === 'ndjson') {
             await processNdjsonStdin(parser, outputOptions);

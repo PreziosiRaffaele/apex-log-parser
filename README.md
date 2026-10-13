@@ -275,6 +275,16 @@ To include the recursive tree in JSON output, use `--include-tree`:
 apex-log-parser -f mylog.log --include-tree
 ```
 
+### Exit Codes
+
+| Code | Meaning |
+| ---- | ------- |
+| `0` | Every input log was parsed successfully |
+| `1` | Nothing was parsed: invalid options, no input files found, every log failed to parse, raw `stdin` contained no Apex log header, invalid NDJSON input, or no input was provided on an interactive terminal (help is printed to `stderr`) |
+| `2` | Partial success: at least one log was parsed, but another file or raw `stdin` log could not be read or parsed |
+
+Errors are reported on `stderr`; `stdout` only carries parsed output.
+
 ## Event Types
 
 The `type` property in `events` corresponds to the kind of parsed log event. You can use these values with `--type`, `--exclude-type`, or tools like `jq`:
