@@ -90,6 +90,9 @@ Options:
       Number of hotspots to report per log. Defaults to 20. Requires --hotspots.
   --schema
       Print the JSON output schema and field reference.
+  --json-schema
+      Print a JSON Schema (draft 2020-12) for the default, --near-limit, and
+      --hotspots JSON output.
   -v, --version
       Print the parser version.
   -h, --help
@@ -253,6 +256,7 @@ Notes:
   - summary outcome, errors, peakLimits, and counts are computed from the full log and are never affected by filters
   - --near-limit is an aggregate report mode and cannot be combined with event filters, --tree, --include-tree, or --include-context
   - consecutive identical FATAL_ERROR lines are reported as a single event
+  - use --json-schema for a machine-readable JSON Schema of this output
   - ROOT is a synthetic tree node and is not present in events or accepted by event filters
   - every parsed log is emitted; events is [] when no events match the filters
 `.trim();

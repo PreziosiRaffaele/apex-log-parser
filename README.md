@@ -390,6 +390,14 @@ ROOT(00001)
 
 Both options can be combined. With `--include-tree`, `--min-duration-ms` keeps its usual meaning and filters only `events`.
 
+### JSON Schema
+
+`--json-schema` prints a JSON Schema (draft 2020-12) for each JSON document the CLI writes. A document matches `DefaultOutput` (`summary`, `events`, and optional `tree`), `NearLimitOutput` (`summary` and `nearLimitTransactions`), or `HotspotOutput` (`summary` and `hotspots`). `--schema` prints the same information as a human-readable field reference. The schema is also exported from the library as `JSON_SCHEMA`.
+
+```bash
+apex-log-parser --json-schema > apex-log-parser.schema.json
+```
+
 ### Exit Codes
 
 | Code | Meaning |
