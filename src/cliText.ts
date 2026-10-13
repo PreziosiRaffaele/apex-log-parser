@@ -60,7 +60,8 @@ Options:
       context, or event filter options.
   --limit-threshold <LIMIT=percentage[,LIMIT=percentage...]>
       Override near-limit thresholds. Can be repeated.
-      Defaults ignore QUEUEABLE_JOBS and MOBILE_APEX_PUSH unless overridden.
+      QUEUEABLE_JOBS and MOBILE_APEX_PUSH are ignored below 100% unless overridden.
+      Any limit at or above its max (current >= max) is always reported unless excluded.
   --exclude-limit <LIMIT[,LIMIT...]>
       Exclude matching governor limits from --near-limit reports.
       Exclusions win over defaults and threshold overrides.
@@ -109,7 +110,7 @@ Examples:
     ... | apex-log-parser --near-limit
 
   Lower thresholds or opt into ignored limit types:
-    ... | apex-log-parser --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
+    ... | apex-log-parser --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=80
 
   Show the slowest events across multiple logs:
     ... | apex-log-parser | jq -s '[.[].events[] | select((.durationMs // 0) > 0)] | sort_by(.durationMs) | reverse[:20]'
@@ -177,7 +178,10 @@ JSON output schema:
     nearLimitTransactions[].matches[]
       Aggregated governor-limit pressure by executionId, scope, namespace, and
       limit. Each match includes scope, namespace, limit, current, max,
-      usagePercentage, threshold, eventId, and timeStart.
+      usagePercentage, breached, threshold, eventId, and timeStart.
+      breached is true when current exceeds max. Limits at or above their max
+      (current >= max) are always reported unless excluded; threshold is 100
+      when no configured threshold applies.
 
 Event types:
   CODE_UNIT, METHOD, CONSTRUCTOR, SYSTEM_METHOD, SOQL, DML, EXCEPTION_THROWN, FATAL_ERROR,

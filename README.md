@@ -207,13 +207,15 @@ sf apex get log --number 25 -o AliasOrg | apex-log-parser --near-limit
 
 Repeated `LIMIT` snapshots are collapsed per `executionId`, scope, namespace, and limit, keeping the worst snapshot by usage percentage, current value, and latest timestamp. Apex test transactions are kept separate by their execution block.
 
-Default thresholds are tuned for actionable pressure: SOQL, DML, CPU, and heap limits match at 70%; SOSL and callouts at 80%; email invocations and future calls at 90%. `QUEUEABLE_JOBS` and `MOBILE_APEX_PUSH` are ignored unless you opt in:
+Default thresholds are tuned for actionable pressure: SOQL, DML, CPU, and heap limits match at 70%; SOSL and callouts at 80%; email invocations and future calls at 90%. `QUEUEABLE_JOBS` and `MOBILE_APEX_PUSH` are ignored below 100% unless you opt in:
 
 ```bash
-apex-log-parser -f mylog.log --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=100
+apex-log-parser -f mylog.log --near-limit --limit-threshold SOQL_QUERIES=60,QUEUEABLE_JOBS=80
 ```
 
-Exclude noisy limits when needed:
+Any limit at or above its max (`current >= max`) is always reported, even without a threshold, so a log that fails with `System.LimitException` is never silently omitted. Such matches report `threshold: 100`. Each match also includes `breached: true` when `current` exceeds `max`.
+
+Exclude noisy limits when needed. Exclusions win, including over the at-limit rule:
 
 ```bash
 apex-log-parser -f mylog.log --near-limit --exclude-limit QUEUEABLE_JOBS

@@ -160,6 +160,9 @@ export interface NearLimitMatch {
     current: number;
     max: number;
     usagePercentage: number;
+    /** True when current exceeds max, i.e. the governor limit was actually exceeded. */
+    breached: boolean;
+    /** Configured threshold, or 100 when the match is reported only because current reached max. */
     threshold: number;
     eventId: string;
     timeStart: number;
